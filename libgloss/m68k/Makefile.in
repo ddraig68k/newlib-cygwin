@@ -103,15 +103,6 @@ BCC_BSP=	libbcc.a
 BCC_OBJS=	cpu32bug.o
 
 #
-# here's all the Kiwi target stuff
-#
-KIWI_LDFLAGS=	-L${srcdir} -Tkiwi.ld
-KIWI_BSP=	libkiwi.a
-KIWI_OBJS=	kiwi-inbyte.o kiwi-outbyte.o kiwi-close.o kiwi-open.o kiwi-read.o kiwi-write.o kiwi-lseek.o kiwi-fat.o kiwi-sbrk.o kiwi-gettimeofday.o mc68ec.o fat_access.o fat_cache.o fat_filelib.o fat_format.o fat_misc.o fat_string.o fat_table.o fat_write.o
-KIWI_ROM0=      kiwi_rom0.o
-KIWI_CRT0=      kiwi_crt0.o
-
-#
 # here's all the Y Ddraig target stuff
 #
 DDRAIG_LDFLAGS=	-L${srcdir} -Tddraig.ld
@@ -223,8 +214,7 @@ all :: $(DO:%=all_%)
 
 .PHONY: all_m68k
 all_m68k :: ${SIM_CRT0} ${SIM_BSP} ${CRT0} ${BCC_BSP} ${IDP_BSP} \
-	${IDPGDB_BSP} ${MVME135_BSP} ${MVME162_BSP} ${KIWI_ROM0} ${KIWI_CRT0} ${KIWI_BSP} \
-	${DDRAIG_CRT0} ${DDRAIG_BSP}
+	${IDPGDB_BSP} ${MVME135_BSP} ${MVME162_BSP} ${DDRAIG_CRT0} ${DDRAIG_BSP}
 .PHONY: all_cf
 all_cf :: ${CF_CRT0S} ${CF_BSP} ${CF_SCRIPTS} ${HOSTED_BSP} ${UNHOSTED_BSP}
 
@@ -238,10 +228,6 @@ ${SIM_BSP}: ${SIM_OBJS}
 
 ${BCC_BSP}: $(OBJS) ${BCC_OBJS}
 	${AR} ${ARFLAGS} $@ $(OBJS) ${BCC_OBJS}
-	${RANLIB} $@
-
-${KIWI_BSP}: $(OBJS) ${KIWI_OBJS}
-	${AR} ${ARFLAGS} $@ $(OBJS) ${KIWI_OBJS}
 	${RANLIB} $@
 
 ${DDRAIG_BSP}: $(OBJS) ${DDRAIG_OBJS}
@@ -336,42 +322,6 @@ fido-sdram-hosted.ld: fido.sc
 fido-redboot.ld: fido.sc
 	MODE=redboot IO=unhosted ${SHELL} $< > $@
 
-kiwi-inbyte.o: ${srcdir}/kiwi-inbyte.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-outbyte.o: ${srcdir}/kiwi-outbyte.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-close.o: ${srcdir}/kiwi-close.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-open.o: ${srcdir}/kiwi-open.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-read.o: ${srcdir}/kiwi-read.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-write.o: ${srcdir}/kiwi-write.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-lseek.o: ${srcdir}/kiwi-lseek.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-fat.o: ${srcdir}/kiwi-fat.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-sbrk.o: ${srcdir}/kiwi-sbrk.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi-gettimeofday.o: ${srcdir}/kiwi-gettimeofday.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi_rom0.o: ${srcdir}/kiwi_rom0.S
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-kiwi_crt0.o: ${srcdir}/kiwi_crt0.S
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
 ddraig_crt0.o: ${srcdir}/ddraig_crt0.S
 	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
 
@@ -424,30 +374,6 @@ ddraig_injyte.o: ${srcdir}/ddraig_inbyte.c
 	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
 
 ddraig_outbyte.o: ${srcdir}/ddraig_outbyte.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_access.o: ${srcdir}/fat_access.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_cache.o: ${srcdir}/fat_cache.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_filelib.o: ${srcdir}/fat_filelib.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_format.o: ${srcdir}/fat_format.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_misc.o: ${srcdir}/fat_misc.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_string.o: ${srcdir}/fat_string.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_table.o: ${srcdir}/fat_table.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-fat_write.o: ${srcdir}/fat_write.c
 	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
 
 leds.o: ${srcdir}/leds.c
@@ -558,11 +484,6 @@ install_m68k::
 	# install BCC stuff
 	$(INSTALL_PROGRAM) $(BCC_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(BCC_BSP)
 	$(INSTALL_DATA) ${srcdir}/bcc.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/bcc.ld
-	# install KIWI stuff
-	$(INSTALL_PROGRAM) $(KIWI_CRT0) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(KIWI_CRT0)
-	$(INSTALL_PROGRAM) $(KIWI_ROM0) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(KIWI_ROM0)
-	$(INSTALL_PROGRAM) $(KIWI_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(KIWI_BSP)
-	$(INSTALL_DATA) ${srcdir}/kiwi.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/kiwi.ld
 	# install DDRAIG stuff
 	$(INSTALL_PROGRAM) $(DDRAIG_CRT0) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(DDRAIG_CRT0)
 	$(INSTALL_PROGRAM) $(DDRAIG_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(DDRAIG_BSP)
