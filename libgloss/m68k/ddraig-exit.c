@@ -20,8 +20,7 @@
  * _exit -- Exit from the application.  
  */
 
-void __attribute__ ((noreturn)) _exit (int code)
+void _exit (int code)
 {
-  while (1)
-    ;
+    return;
 }

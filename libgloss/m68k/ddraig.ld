@@ -45,10 +45,7 @@ __DYNAMIC  =  0;
 
 MEMORY
 {
-  /*ram (rwx) : ORIGIN = 0x0020000, LENGTH = 128K - 0x05000*/
-  /*ram (rwx) : ORIGIN = 0x3ed9e0, LENGTH = 4M-0x3e8000*/
-  /*ram (rwx) : ORIGIN = 0x3edb00, LENGTH = 4M-0x3e8000*/
-  ram (rwx) : ORIGIN = 0x2000, LENGTH = 0x100000-0x2000
+  ram (rwx) : ORIGIN = 0x100000, LENGTH = 8M-0x2000
 }
 
 /*
@@ -56,7 +53,10 @@ MEMORY
  * grows down
  */
 
-PROVIDE (__stack = 1M - 8);
+/*
+PROVIDE (__stack = 9M - 8);
+*/
+PROVIDE (__stack = 0);
 
 /*
  * Initalize some symbols to be zero so we can reference them in the

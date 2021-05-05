@@ -19,6 +19,7 @@ SYM (environ):
  	.align	2
 	.text
 
+
 /*
  * These symbols are defined in C code, so they need to always be
  * named with SYM because of the difference between object file formats.
