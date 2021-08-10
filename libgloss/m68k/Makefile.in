@@ -107,7 +107,7 @@ BCC_OBJS=	cpu32bug.o
 #
 DDRAIG_LDFLAGS=	-L${srcdir} -Tddraig.ld
 DDRAIG_BSP=		libddraig.a
-DDRAIG_OBJS=	ddraig-close.o ddraig-exit.o  ddraig-fstat.o ddraig-gettimeofday.o ddraig-isatty.o ddraig-lseek.o ddraig-open.o ddraig-read.o ddraig-rename.o ddraig-sbrk.o ddraig-stat.o ddraig-system.o ddraig-time.o ddraig-unlink.o ddraig-write.o ddraig-inbyte.o ddraig-outbyte.o
+DDRAIG_OBJS=	ddraig-close.o ddraig-exit.o ddraig-fstat.o ddraig-gettimeofday.o ddraig-isatty.o ddraig-lseek.o ddraig-open.o ddraig-read.o ddraig-rename.o ddraig-sbrk.o ddraig-stat.o ddraig.o ddraig-time.o ddraig-unlink.o ddraig-write.o ddraig-inbyte.o ddraig-outbyte.o
 DDRAIG_CRT0=	ddraig_crt0.o
 
 #
@@ -325,55 +325,7 @@ fido-redboot.ld: fido.sc
 ddraig_crt0.o: ${srcdir}/ddraig_crt0.S
 	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
 
-ddraig_close.o: ${srcdir}/ddraig_close.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_exit.o: ${srcdir}/ddraig_exit.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_fstat.o: ${srcdir}/ddraig_fstat.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_gettimeofday.o: ${srcdir}/ddraig_gettimeofday.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_isatty.o: ${srcdir}/ddraig_isatty.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_lseek.o: ${srcdir}/ddraig_lseek.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_open.o: ${srcdir}/ddraig_open.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_read.o: ${srcdir}/ddraig_read.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_rename.o: ${srcdir}/ddraig_rename.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_sbrk.o: ${srcdir}/ddraig_sbrk.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_stat.o: ${srcdir}/ddraig_stat.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_system.o: ${srcdir}/ddraig_system.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_time.o: ${srcdir}/ddraig_time.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_unlink.o: ${srcdir}/ddraig_unlink.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_write.o: ${srcdir}/ddraig_write.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_injyte.o: ${srcdir}/ddraig_inbyte.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig_outbyte.o: ${srcdir}/ddraig_outbyte.c
+ddraig-open.o: ${srcdir}/ddraig-open.c
 	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
 
 leds.o: ${srcdir}/leds.c

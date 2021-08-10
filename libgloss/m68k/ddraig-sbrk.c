@@ -13,14 +13,11 @@
  * they apply.
  */
 #include <errno.h>
-#include "../glue.h"
 
-/* just in case, most boards have at least some memory */
-#ifndef RAMSIZE
-#  define RAMSIZE             (char *)0x0A0000
-#endif
+extern char __end[] __attribute__ ((aligned (4))); // Pointer to start of heap
+static char *heap_ptr = 0;
 
-char *heap_ptr;
+#define RAMSIZE (1024*1024*8)
 
 /*
  * sbrk -- changes heap size size. Get nbytes more
@@ -29,25 +26,20 @@ char *heap_ptr;
  */
 char *sbrk (int nbytes)
 {
-  char        *base;
+    char    *base;
 
     if (!heap_ptr)
-      heap_ptr = (char *)&_end;
+        heap_ptr = (char *)&__end;
 
-/* FIXME: We really want to make sure we don't run out of RAM, but this
- *       isn't very portable. */
-#if 1
-  if ((RAMSIZE - heap_ptr - nbytes) >= 0)
-  {
-    base = heap_ptr;
-    heap_ptr += nbytes;
-    return (base);
-  }
-  else
-  {
-    errno = ENOMEM;
-    return ((char *)-1);
-  }
-#endif
+    if ((RAMSIZE - (int)heap_ptr - nbytes) >= 0)
+    {
+        base = heap_ptr;
+        heap_ptr += nbytes;
+        return (base);
+    }
+    else
+    {
+        errno = ENOMEM;
+        return ((char *)-1);
+    }
 }
-

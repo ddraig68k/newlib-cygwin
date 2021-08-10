@@ -19,17 +19,33 @@
 #define IO close
 #include "io.h"
 
-/*
- * close -- close a file descriptor.
- * input parameters:
- *   0 : file descriptor
- * output parameters:
- *   0 : result
- *   1 : errno
+#include "ddraig.h"
+
+/* use BIOS call to clsoe file
+ * 
+ * CALL:
+ * sys.d0 = file number
+ * 
+ * RETURN:
+ * return code = error code
  */
 
 int close (int fd)
 {
-  // TODO : Implement code
-  return 0;
+  	syscall_data sys;
+	int ret;
+
+	sys.command = DISK_FILEOPEN;
+	sys.d0 = __hosted_to_bios_file_flags(fd);
+
+  	__asm__ volatile(
+	"move.l	%1, %%a0\n"
+	"trap	#15\n"
+	"move.l %%d0, %0\n"
+	: "=g" (ret)
+	: "g" (&sys)
+	: "%a0"
+	);
+
+  	return ret;
 }

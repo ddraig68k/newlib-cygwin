@@ -40,5 +40,6 @@ TAGS.sub
 # ignore core files, but not java/net/protocol/core/
 core
 !core/
+.vscode/
 
 lost+found

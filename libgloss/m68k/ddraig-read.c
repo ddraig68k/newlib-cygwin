@@ -19,21 +19,40 @@
 #define IO read
 #include "io.h"
 
-/*
- * read -- read from a file descriptor
- * input parameters:
- *   0 : file descriptor
- *   1 : buf ptr
- *   2 : count
- * output parameters:
- *   0 : result
- *   1 : errno
+#include "ddraig.h"
+
+/* use BIOS call to read file
+ * 
+ * CALL:
+ * sys.d0 = file number
+ * sys.d1 = count
+ * sys.a0 = buffer 
+ * 
+ * RETURN:
+ * return code = number of bytes read
+ * sys.d0 = number of bytes read
+ * sys.d1 = errno;
  */
 
 ssize_t read (int fd, void *buf, size_t count)
 {
-  // TODO : Implement code
+  	syscall_data sys;
+    int ret;
 
-  errno = ENOSYS;
-  return -1;
+    sys.command = DISK_FILEREAD;
+    sys.a0 = buf;
+    sys.d0 = fd;
+    sys.d1 = count;
+
+    __asm__ volatile(
+    "move.l	%1, %%a0\n"
+    "trap	#15\n"
+    "move.l %%d0, %0\n"
+    : "=g" (ret)
+    : "g" (&sys)
+    : "%a0"
+    );
+
+  	errno = sys.d1;
+  	return ret;
 }

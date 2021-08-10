@@ -22,5 +22,5 @@
 
 void _exit (int code)
 {
-    return;
+    while (1);
 }
