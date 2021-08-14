@@ -231,7 +231,7 @@ ${BCC_BSP}: $(OBJS) ${BCC_OBJS}
 	${RANLIB} $@
 
 ${DDRAIG_BSP}: $(OBJS) ${DDRAIG_OBJS}
-	${AR} ${ARFLAGS} $@ $(OBJS) ${DDRAIG_OBJS}
+	${AR} ${ARFLAGS} $@ ${DDRAIG_OBJS} $(OBJS)
 	${RANLIB} $@
 
 ${IDP_BSP}: $(OBJS) ${IDP_OBJS}
