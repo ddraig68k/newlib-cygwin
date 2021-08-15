@@ -18,8 +18,8 @@ int close (int fd)
   	syscall_data sys;
 	int ret;
 
-	sys.command = DISK_FILEOPEN;
-	sys.d0 = __hosted_to_bios_file_flags(fd);
+	sys.command = DISK_FILECLOSE;
+	sys.d0 = fd;
 
   	__asm__ volatile(
 	"move.l	%1, %%a0\n"

@@ -7,6 +7,7 @@
 #include "io.h"
 
 #include "ddraig.h"
+#include "stdio.h"
 
 /* use BIOS call to get file stat
  * 
@@ -28,8 +29,10 @@ int stat (const char *__restrict filename, struct stat *__restrict buf)
 
 	memset(&fileinfo, 0, sizeof(FILINFO));
 
+	printf("Calling stat on file %s\n\r", filename);
+
 	sys.command = DISK_FILESTAT;
-	sys.a0 = (const void *)filename;
+	sys.a0 = (void *)filename;
 	sys.a1 = &fileinfo;
 
 	__asm__ volatile(
@@ -41,7 +44,9 @@ int stat (const char *__restrict filename, struct stat *__restrict buf)
 	: "%a0"
 	);
 
-  	errno = sys.d1;
+	printf("stat returned %d\n\r", ret);
+
+  	errno = _bios_to_error_code(sys.d1);
 	if (ret < 0)
   		return ret;
 

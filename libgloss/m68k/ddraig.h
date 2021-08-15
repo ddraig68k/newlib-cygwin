@@ -41,7 +41,7 @@ typedef struct
 #include "ddraig-ff.h"
 
 // Utility functions
-int32_t __hosted_to_bios_file_flags(int f);
-
+int32_t _bios_to_file_flags(int f);
+int32_t _bios_to_error_code(int err);
 
 #endif

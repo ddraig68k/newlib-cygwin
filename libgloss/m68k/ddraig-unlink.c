@@ -32,6 +32,6 @@ int unlink (const char *path)
 	: "%a0"
 	);
 
-  	errno = sys.d1;
+  	errno = _bios_to_error_code(sys.d1);
   	return ret;
 }

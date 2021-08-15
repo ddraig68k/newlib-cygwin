@@ -5,6 +5,7 @@
 #include "io.h"
 
 #include "ddraig.h"
+#include "stdio.h"
 
 /* use BIOS call to get file FIL struct
  * 
@@ -21,8 +22,16 @@ int fstat (int fd, struct stat *buf)
   	syscall_data sys;
 	int ret;
 
-	sys.command = DISK_FILESTAT;
+	if (fd < 3)
+	{
+		buf->st_mode = S_IFCHR;
+		return -1;
+	}
+
+	sys.command = DISK_FILESTRUCT;
 	sys.d0 = fd;
+
+	printf("fstat: Attempting to get stats for file %d\n\r", fd);
 
 	__asm__ volatile(
 	"move.l	%1, %%a0\n"
@@ -33,7 +42,9 @@ int fstat (int fd, struct stat *buf)
 	: "%a0"
 	);
 
-  	errno = sys.d1;
+	printf("fstat: returned code %d\n\r", ret);
+
+  	errno = _bios_to_error_code(sys.d1);
 	if (ret < 0)
   		return ret;
 		  

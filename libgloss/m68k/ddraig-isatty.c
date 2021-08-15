@@ -13,6 +13,8 @@
 
 int isatty (int fd)
 {
-  // TODO : Implement code
-  return 1;
+    if (fd < 3)
+        return 1;
+    else
+        return 0;
 }

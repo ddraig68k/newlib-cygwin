@@ -34,6 +34,6 @@ int _rename (const char *oldpath, const char *newpath)
 	: "%a0"
 	);
 
-  	errno = sys.d1;
+  	errno = _bios_to_error_code(sys.d1);
   	return ret;
 }

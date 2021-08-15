@@ -36,6 +36,6 @@ ssize_t write (int fd, const void *buf, size_t count)
     : "%a0"
     );
 
-  	errno = sys.d1;
+  	errno = _bios_to_error_code(sys.d1);
   	return ret;
 }

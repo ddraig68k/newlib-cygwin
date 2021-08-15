@@ -322,12 +322,6 @@ fido-sdram-hosted.ld: fido.sc
 fido-redboot.ld: fido.sc
 	MODE=redboot IO=unhosted ${SHELL} $< > $@
 
-ddraig_crt0.o: ${srcdir}/ddraig_crt0.S
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
-ddraig-open.o: ${srcdir}/ddraig-open.c
-	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
-
 leds.o: ${srcdir}/leds.c
 	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $<
 
