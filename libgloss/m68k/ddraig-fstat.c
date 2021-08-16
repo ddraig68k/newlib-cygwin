@@ -31,8 +31,6 @@ int fstat (int fd, struct stat *buf)
 	sys.command = DISK_FILESTRUCT;
 	sys.d0 = fd;
 
-	printf("fstat: Attempting to get stats for file %d\n\r", fd);
-
 	__asm__ volatile(
 	"move.l	%1, %%a0\n"
 	"trap	#15\n"
@@ -41,8 +39,6 @@ int fstat (int fd, struct stat *buf)
 	: "g" (&sys)
 	: "%a0"
 	);
-
-	printf("fstat: returned code %d\n\r", ret);
 
   	errno = _bios_to_error_code(sys.d1);
 	if (ret < 0)

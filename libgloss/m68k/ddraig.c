@@ -8,7 +8,7 @@
 
 #include "ddraig.h"
 
-int32_t _bios_to_file_flags(int f)
+int32_t _file_to_bios_flags(int f)
 {
     int32_t result = 0;
  

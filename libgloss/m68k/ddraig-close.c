@@ -3,6 +3,8 @@
 #include "io.h"
 
 #include "ddraig.h"
+#include "stdio.h"
+#include "memory.h"
 
 /* use BIOS call to clsoe file
  * 
@@ -15,13 +17,13 @@
 
 int close (int fd)
 {
-  	syscall_data sys;
 	int ret;
+  	volatile syscall_data sys;
 
 	sys.command = DISK_FILECLOSE;
 	sys.d0 = fd;
 
-  	__asm__ volatile(
+	__asm__ volatile(
 	"move.l	%1, %%a0\n"
 	"trap	#15\n"
 	"move.l %%d0, %0\n"
@@ -30,5 +32,5 @@ int close (int fd)
 	: "%a0"
 	);
 
-  	return ret;
+  	return sys.d0;
 }

@@ -29,7 +29,7 @@ int stat (const char *__restrict filename, struct stat *__restrict buf)
 
 	memset(&fileinfo, 0, sizeof(FILINFO));
 
-	printf("Calling stat on file %s\n\r", filename);
+	//printf("Calling stat on file %s\n\r", filename);
 
 	sys.command = DISK_FILESTAT;
 	sys.a0 = (void *)filename;
@@ -44,7 +44,7 @@ int stat (const char *__restrict filename, struct stat *__restrict buf)
 	: "%a0"
 	);
 
-	printf("stat returned %d\n\r", ret);
+	//printf("stat returned %d\n\r", ret);
 
   	errno = _bios_to_error_code(sys.d1);
 	if (ret < 0)

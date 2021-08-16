@@ -16,15 +16,15 @@ typedef struct
 #define DISK_FILECLOSE      2
 #define DISK_FILEREAD       3
 #define DISK_FILEWRITE      4
-#define DISK_FILESEEK		5
-#define DISK_FILESTRUCT		6
-#define DISK_FILESTAT		7
-#define DISK_FILERENAME		8
-#define DISK_FILEDELETE		9
+#define DISK_FILESEEK		    5
+#define DISK_FILESTRUCT		  6
+#define DISK_FILESTAT		    7
+#define DISK_FILERENAME		  8
+#define DISK_FILEDELETE		  9
 
 
-#define SYS_NOP				0
-#define SYS_TIMEDATE		1
+#define SYS_NOP				      0
+#define SYS_TIMEDATE		    1
 
 typedef struct
 {
@@ -41,7 +41,7 @@ typedef struct
 #include "ddraig-ff.h"
 
 // Utility functions
-int32_t _bios_to_file_flags(int f);
+int32_t _file_to_bios_flags(int f);
 int32_t _bios_to_error_code(int err);
 
 #endif
