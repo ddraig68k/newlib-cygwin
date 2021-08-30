@@ -434,6 +434,7 @@ install_m68k::
 	$(INSTALL_PROGRAM) $(DDRAIG_CRT0) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(DDRAIG_CRT0)
 	$(INSTALL_PROGRAM) $(DDRAIG_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(DDRAIG_BSP)
 	$(INSTALL_DATA) ${srcdir}/ddraig.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/ddraig.ld
+	$(INSTALL_DATA) ${srcdir}/ddraigtest.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/ddraigtest.ld
 	# install IDP stuff
 	$(INSTALL_PROGRAM) $(IDP_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(IDP_BSP)
 	$(INSTALL_DATA) ${srcdir}/idp.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/idp.ld
