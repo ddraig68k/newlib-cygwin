@@ -1,4 +1,4 @@
-/*STARTUP(ddraig_crt0.o)*/
+STARTUP(ddraig_crt0.o)
 OUTPUT_ARCH(m68k)
 /* Uncomment this if you want srecords. This is needed for a.out
  * if you plan to use GDB.
