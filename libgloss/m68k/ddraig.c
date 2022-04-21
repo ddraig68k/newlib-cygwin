@@ -15,7 +15,7 @@ int32_t _file_to_bios_flags(int f)
     if (f == O_RDONLY)
         result |= FA_READ;
     if (f & O_WRONLY)
-        result |= FA_WRITE;
+        result |= FA_WRITE | FA_CREATE_ALWAYS;
     if (f & O_RDWR)
         result |= FA_READ | FA_WRITE;
     if (f & O_APPEND)
