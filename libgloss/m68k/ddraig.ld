@@ -48,6 +48,12 @@ MEMORY
   ram (rwx) : ORIGIN = 0x100000, LENGTH = 8M-0x2000
 }
 
+PHDRS
+{
+  text PT_LOAD FLAGS(5);
+  data PT_LOAD FLAGS(6);
+}
+
 /*
  * allocate the stack to be at the top of memory, since the stack
  * grows down
@@ -116,7 +122,7 @@ SECTIONS
     . = ALIGN(0x4);
     _etext = .;
     *(.lit)
-  } > ram
+  } > ram :text
 
   .data :
   {
@@ -124,7 +130,7 @@ SECTIONS
     *(.shdata)
     *(.data .data.*)
     _edata = .;
-  } > ram
+  } > ram :data
 
   .bss :
   {
@@ -135,7 +141,7 @@ SECTIONS
     *(COMMON)
     _end =  ALIGN (0x8);
     __end = _end;
-  } > ram
+  } > ram :data
 
   .stab 0 (NOLOAD) :
   {
