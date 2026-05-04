@@ -25,6 +25,11 @@ SYM (__ddraig_saved_sp):
 	.long 0
 
 	.align 2
+	.global SYM (__ddraig_saved_regs)
+SYM (__ddraig_saved_regs):
+	.space 44
+
+	.align 2
 	.text
 
 /*
@@ -61,8 +66,14 @@ SYM (__ddraig_saved_sp):
 	.global SYM (_start)
 SYM (_start):
 
-	/* Save the loader stack so _exit() can return to it later. */
+	/*
+	 * Save the loader context so _exit() can return to it later.
+	 *
+	 * _exit() does not unwind through main back to this function, so it
+	 * must restore the registers that the m68k ABI says a callee preserves.
+	 */
 	movel	sp, SYM (__ddraig_saved_sp)
+	moveml	d2-d7/a2-a6, SYM (__ddraig_saved_regs)
 
 	/* Reserve stack space and capture argc/argv/envp from the loader. */
 	link	a6, IMM(-12)
