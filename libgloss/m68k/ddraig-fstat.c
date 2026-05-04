@@ -22,10 +22,11 @@ int fstat (int fd, struct stat *buf)
   	syscall_data sys;
 	int ret;
 
-	if (fd < 3)
+	if (fd >= STDIN_FILENO && fd <= STDERR_FILENO)
 	{
 		buf->st_mode = S_IFCHR;
-		return -1;
+		buf->st_nlink = 1;
+		return 0;
 	}
 
 	sys.command = DISK_FILESTRUCT;

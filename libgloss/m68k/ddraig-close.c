@@ -20,6 +20,9 @@ int close (int fd)
 	int ret;
   	volatile syscall_data sys;
 
+	if (fd >= STDIN_FILENO && fd <= STDERR_FILENO)
+		return 0;
+
 	sys.command = DISK_FILECLOSE;
 	sys.d0 = fd;
 

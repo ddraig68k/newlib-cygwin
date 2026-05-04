@@ -4,6 +4,8 @@
 
 #include "ddraig.h"
 
+extern void outbyte (char data);
+
 /* use BIOS call to write file
  * 
  * CALL:
@@ -22,8 +24,25 @@ ssize_t write (int fd, const void *buf, size_t count)
   	syscall_data sys;
     int ret;
 
+    if (fd == STDOUT_FILENO || fd == STDERR_FILENO)
+    {
+        const char *p = buf;
+        size_t n;
+
+        for (n = 0; n < count; n++)
+            outbyte (p[n]);
+
+        return count;
+    }
+
+    if (fd == STDIN_FILENO)
+    {
+        errno = EBADF;
+        return -1;
+    }
+
     sys.command = DISK_FILEWRITE;
-    sys.a0 = buf;
+    sys.a0 = (void *) buf;
     sys.d0 = fd;
     sys.d1 = count;
 

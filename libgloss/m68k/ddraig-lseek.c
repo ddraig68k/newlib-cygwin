@@ -23,6 +23,12 @@ off_t lseek (int fd, off_t offset, int whence)
   	syscall_data sys;
     int ret;
 
+    if (fd >= STDIN_FILENO && fd <= STDERR_FILENO)
+    {
+        errno = ESPIPE;
+        return -1;
+    }
+
     sys.command = DISK_FILESEEK;
     sys.d0 = fd;
     sys.d1 = offset;
