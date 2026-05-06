@@ -4,8 +4,6 @@
 
 #include "ddraig.h"
 
-extern char inbyte (void);
-
 /* use BIOS call to read file
  * 
  * CALL:
@@ -23,17 +21,6 @@ ssize_t read (int fd, void *buf, size_t count)
 {
   	syscall_data sys;
     int ret;
-
-    if (fd == STDIN_FILENO)
-    {
-        char *p = buf;
-        size_t n;
-
-        for (n = 0; n < count; n++)
-            p[n] = inbyte ();
-
-        return count;
-    }
 
     if (fd == STDOUT_FILENO || fd == STDERR_FILENO)
     {
