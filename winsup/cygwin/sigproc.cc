@@ -21,12 +21,15 @@ details. */
 #include "cygtls.h"
 #include "ntdll.h"
 #include "exception.h"
+#include <assert.h>
 
 /*
  * Convenience defines
  */
 #define WSSC		  60000	// Wait for signal completion
 #define WPSP		  40000	// Wait for proc_subproc mutex
+
+#define PIPE_DEPTH (wincap.allocation_granularity ()/ sizeof (sigpacket))
 
 /*
  * Global variables
@@ -42,21 +45,14 @@ bool no_thread_exit_protect::flag;
    required. */
 char NO_COPY myself_nowait_dummy[1] = {'0'};
 
-#define Static static NO_COPY
-
 /* All my children info.  Avoid expensive constructor ops at DLL
    startup.
 
    This class can allocate memory.  But there's no need to free it
    because only one instance of the class is created per process. */
 class child_procs {
-#ifdef __i386__
-    static const int _NPROCS = 256;
-    static const int _NPROCS_2 = 1023;
-#else
     static const int _NPROCS = 1024;
     static const int _NPROCS_2 = 4095;
-#endif
     int _count;
     uint8_t _procs[_NPROCS * sizeof (pinfo)] __attribute__ ((__aligned__));
     pinfo *_procs_2;
@@ -84,47 +80,57 @@ class child_procs {
     }
     int max_child_procs () const { return _NPROCS + _NPROCS_2; }
 };
-Static child_procs chld_procs;
+static NO_COPY child_procs chld_procs;
 
 /* Start of queue for waiting threads. */
-Static waitq waitq_head;
+static NO_COPY waitq waitq_head;
 
 /* Controls access to subproc stuff. */
-Static muto sync_proc_subproc;
+static NO_COPY muto sync_proc_subproc;
 
 _cygtls NO_COPY *_sig_tls;
 
-Static HANDLE my_sendsig;
-Static HANDLE my_readsig;
+static NO_COPY HANDLE my_sendsig;
+static NO_COPY HANDLE my_readsig;
 
 /* Used in select if a signalfd is part of the read descriptor set */
 HANDLE NO_COPY my_pendingsigs_evt;
 
+/* Used by sig_send() with __SIGFLUSHFAST */
+static NO_COPY HANDLE sigflush_evt;
+static NO_COPY HANDLE sigflush_done_evt;
+
 /* Function declarations */
-static int __reg1 checkstate (waitq *);
+static int checkstate (waitq *);
 static __inline__ bool get_proc_lock (DWORD, DWORD);
 static int remove_proc (int);
 static bool stopped_or_terminated (waitq *, _pinfo *);
-static void WINAPI wait_sig (VOID *arg);
+static void wait_sig (VOID *arg);
 
 /* wait_sig bookkeeping */
 
 class pending_signals
 {
-  sigpacket sigs[_NSIG + 1];
+  sigpacket sigs[SIGQUEUE_MAX];
   sigpacket start;
+  int queue_left;
+  SRWLOCK queue_lock;
   bool retry;
+  void lock () { AcquireSRWLockExclusive (&queue_lock); }
+  void unlock () { ReleaseSRWLockExclusive (&queue_lock); }
 
 public:
+  pending_signals (): queue_left (SIGQUEUE_MAX), queue_lock (SRWLOCK_INIT) {}
   void add (sigpacket&);
-  bool pending () {retry = true; return !!start.next;}
-  void clear (int sig) {sigs[sig].si.si_signo = 0;}
+  bool pending () {retry = !!start.next; return retry;}
+  void clear (int sig, bool need_lock);
   void clear (_cygtls *tls);
-  friend void __reg1 sig_dispatch_pending (bool);
-  friend void WINAPI wait_sig (VOID *arg);
+  friend void sig_dispatch_pending (bool);
+  friend void wait_sig (VOID *arg);
+  friend sigset_t sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls);
 };
 
-Static pending_signals sigq;
+static NO_COPY pending_signals sigq;
 
 /* Functions */
 void
@@ -161,7 +167,7 @@ get_proc_lock (DWORD what, DWORD val)
 {
   if (!cygwin_finished_initializing)
     return true;
-  Static int lastwhat = -1;
+  static NO_COPY int lastwhat = -1;
   if (!sync_proc_subproc)
     {
       sigproc_printf ("sync_proc_subproc is NULL");
@@ -192,7 +198,7 @@ proc_can_be_signalled (_pinfo *p)
   return false;
 }
 
-bool __reg1
+bool
 pid_exists (pid_t pid)
 {
   pinfo p (pid);
@@ -211,7 +217,7 @@ mychild (int pid)
 
 /* Handle all subprocess requests
  */
-int __reg2
+int
 proc_subproc (DWORD what, uintptr_t val)
 {
   int slot;
@@ -255,7 +261,7 @@ proc_subproc (DWORD what, uintptr_t val)
 	  vchild->sid = myself->sid;
 	  vchild->ctty = myself->ctty;
 	  vchild->cygstarted = true;
-	  vchild->process_state |= PID_INITIALIZING;
+	  InterlockedOr ((LONG *)&vchild->process_state, PID_INITIALIZING);
 	  vchild->ppid = myself->pid;	/* always set last */
 	}
       break;
@@ -433,10 +439,35 @@ proc_terminate ()
 }
 
 /* Clear pending signal */
-void __reg1
-sig_clear (int sig)
+void
+sig_clear (int sig, bool need_lock)
 {
-  sigq.clear (sig);
+  sigq.clear (sig, need_lock);
+}
+
+/* Clear pending signals of specific si_signo.
+   Called from sigpacket::process(). */
+void
+pending_signals::clear (int sig, bool need_lock)
+{
+  sigpacket *q = &start;
+
+  if (!sig)
+    return;
+
+  if (need_lock)
+    lock ();
+  while ((q = q->next))
+    if (q->si.si_signo == sig)
+      {
+	q->si.si_signo = 0;
+	q->prev->next = q->next;
+	if (q->next)
+	  q->next->prev = q->prev;
+	queue_left++;
+      }
+  if (need_lock)
+    unlock ();
 }
 
 /* Clear pending signals of specific thread.  Called under TLS lock from
@@ -444,16 +475,19 @@ sig_clear (int sig)
 void
 pending_signals::clear (_cygtls *tls)
 {
-  sigpacket *q = &start, *qnext;
+  sigpacket *q = &start;
 
-  while ((qnext = q->next))
-    if (qnext->sigtls == tls)
+  lock ();
+  while ((q = q->next))
+    if (q->sigtls == tls)
       {
-	qnext->si.si_signo = 0;
-	q->next = qnext->next;
+	q->si.si_signo = 0;
+	q->prev->next = q->next;
+	if (q->next)
+	  q->next->prev = q->prev;
+	queue_left++;
       }
-    else
-      q = qnext;
+  unlock ();
 }
 
 /* Clear pending signals of specific thread.  Called from _cygtls::remove */
@@ -474,7 +508,7 @@ sigpending (sigset_t *mask)
 }
 
 /* Force the wait_sig thread to wake up and scan for pending signals */
-void __reg1
+void
 sig_dispatch_pending (bool fast)
 {
   /* Non-atomically test for any signals pending and wake up wait_sig if any are
@@ -492,7 +526,7 @@ sigproc_init ()
   char char_sa_buf[1024];
   PSECURITY_ATTRIBUTES sa = sec_user_nih ((PSECURITY_ATTRIBUTES) char_sa_buf, cygheap->user.sid());
   DWORD err = fhandler_pipe::create (sa, &my_readsig, &my_sendsig,
-				     _NSIG * sizeof (sigpacket), "sigwait",
+				     PIPE_DEPTH * sizeof (sigpacket), "sigwait",
 				     PIPE_ADD_PID);
   if (err)
     {
@@ -502,6 +536,8 @@ sigproc_init ()
   ProtectHandle (my_readsig);
   myself->sendsig = my_sendsig;
   my_pendingsigs_evt = CreateEvent (NULL, TRUE, FALSE, NULL);
+  sigflush_evt = CreateEvent (NULL, FALSE, FALSE, NULL);
+  sigflush_done_evt = CreateEvent (NULL, FALSE, FALSE, NULL);
   if (!my_pendingsigs_evt)
     api_fatal ("couldn't create pending signal event, %E");
 
@@ -551,7 +587,7 @@ exit_thread (DWORD res)
   ExitThread (res);
 }
 
-sigset_t __reg3
+sigset_t
 sig_send (_pinfo *p, int sig, _cygtls *tls)
 {
   siginfo_t si = {};
@@ -564,17 +600,18 @@ sig_send (_pinfo *p, int sig, _cygtls *tls)
    If pinfo *p == NULL, send to the current process.
    If sending to this process, wait for notification that a signal has
    completed before returning.  */
-sigset_t __reg3
+sigset_t
 sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls)
 {
   int rc = 1;
   bool its_me;
   HANDLE sendsig;
+  HANDLE mtx;
   sigpacket pack;
   bool communing = si.si_signo == __SIGCOMMUNE;
 
   pack.wakeup = NULL;
-  bool wait_for_completion;
+  bool wait_for_completion = false;
   if (!(its_me = p == NULL || p == myself || p == myself_nowait))
     {
       /* It is possible that the process is not yet ready to receive messages
@@ -594,6 +631,14 @@ sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls)
       p = myself;
     }
 
+  /* If myself is the stub process, send signal to the child process
+     rather than myself. The fact that myself->dwProcessId is not equal
+     to the current process id indicates myself is the stub process. */
+  if (its_me && myself->dwProcessId != GetCurrentProcessId ())
+    {
+      wait_for_completion = false;
+      its_me = false;
+    }
 
   if (its_me)
     sendsig = my_sendsig;
@@ -601,8 +646,12 @@ sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls)
     {
       HANDLE dupsig;
       DWORD dwProcessId;
-      for (int i = 0; !p->sendsig && i < 10000; i++)
-	yield ();
+      if (!ISSTATE (p, PID_NOTCYGWIN))
+	{
+	  DWORD t0 = GetTickCount ();
+	  while (GetTickCount () - t0 < 100 && !p->sendsig)
+	    yield ();
+	}
       if (p->sendsig)
 	{
 	  dupsig = p->sendsig;
@@ -675,7 +724,7 @@ sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls)
   sigset_t pending;
   if (!its_me)
     pack.mask = NULL;
-  else if (si.si_signo == __SIGPENDING)
+  else if (si.si_signo == __SIGPENDING || si.si_signo == __SIGPENDINGALL)
     pack.mask = &pending;
   else if (si.si_signo == __SIGFLUSH || si.si_signo > 0)
     {
@@ -717,6 +766,38 @@ sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls)
       memcpy (p, si._si_commune._si_str, n); p += n;
     }
 
+  char mtx_name[MAX_PATH];
+  shared_name (mtx_name, "sig_send", p->pid);
+  mtx = CreateMutex (&sec_none_nih, FALSE, mtx_name);
+  WaitForSingleObject (mtx, INFINITE);
+
+  if (its_me && (si.si_signo == __SIGFLUSHFAST || si.si_signo == __SIGFLUSH))
+    {
+      /* Currently, __SIGFLUSH is automatically processed in wait_sig() by
+	 itself if pending signals exist. Therefore, sending __SIGFLUSH* is
+	 not absolutely necessary. So, if there is not enough space in the
+	 queue or the pipe, do not send __SIGFLUSHFAST to avoid deadlock.
+	 Do the same for __SIGFLUSH. */
+      IO_STATUS_BLOCK io;
+      FILE_PIPE_LOCAL_INFORMATION fpli;
+      fpli.WriteQuotaAvailable = 0;
+      NtQueryInformationFile (my_sendsig, &io, &fpli, sizeof (fpli),
+			      FilePipeLocalInformation);
+      int pkts_in_pipe =
+	PIPE_DEPTH - fpli.WriteQuotaAvailable / sizeof (sigpacket);
+      if (sigq.queue_left < pkts_in_pipe + 2
+	  || fpli.WriteQuotaAvailable < sizeof (sigpacket))
+	{
+	  ReleaseMutex (mtx);
+	  CloseHandle (mtx);
+	  ResetEvent (sigflush_done_evt);
+	  SetEvent (sigflush_evt);
+	  WaitForSingleObject (sigflush_done_evt, INFINITE);
+	  rc = 0;
+	  goto out;
+	}
+    }
+
   DWORD nb;
   BOOL res;
   /* Try multiple times to send if packsize != nb since that probably
@@ -726,9 +807,13 @@ sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls)
       res = WriteFile (sendsig, leader, packsize, &nb, NULL);
       if (!res || packsize == nb)
 	break;
+      ReleaseMutex (mtx);
       Sleep (10);
+      WaitForSingleObject (mtx, INFINITE);
       res = 0;
     }
+  ReleaseMutex (mtx);
+  CloseHandle (mtx);
 
   if (!res)
     {
@@ -780,9 +865,6 @@ sig_send (_pinfo *p, siginfo_t& si, _cygtls *tls)
       rc = -1;
     }
 
-  if (wait_for_completion && si.si_signo != __SIGFLUSHFAST)
-    _my_tls.call_signal_handler ();
-
 out:
   if (communing && rc)
     {
@@ -793,7 +875,12 @@ out:
     }
   if (pack.wakeup)
     ForceCloseHandle (pack.wakeup);
-  if (si.si_signo != __SIGPENDING)
+
+  /* Handle signals here if it was not handled yet */
+  if (wait_for_completion && pack.si.si_signo != __SIGFLUSHFAST)
+    _my_tls.call_signal_handler ();
+
+  if (si.si_signo != __SIGPENDING && si.si_signo != __SIGPENDINGALL)
     /* nothing */;
   else if (!rc)
     rc = pending;
@@ -809,31 +896,12 @@ int child_info::retry_count = 0;
    by fork/spawn/exec. */
 child_info::child_info (unsigned in_cb, child_info_types chtype,
 			bool need_subproc_ready):
-  cb (in_cb), intro (PROC_MAGIC_GENERIC), magic (CHILD_INFO_MAGIC),
-  type (chtype), cygheap (::cygheap), cygheap_max (::cygheap_max),
-  flag (0), retry (child_info::retry_count), rd_proc_pipe (NULL),
-  wr_proc_pipe (NULL)
+  msv_count (0), cb (in_cb), intro (PROC_MAGIC_GENERIC),
+  magic (CHILD_INFO_MAGIC), type (chtype), cygheap (::cygheap),
+  cygheap_max (::cygheap_max), flag (0), retry (child_info::retry_count),
+  rd_proc_pipe (NULL), wr_proc_pipe (NULL), subproc_ready (NULL),
+  sigmask (_my_tls.sigmask)
 {
-  /* It appears that when running under WOW64 on Vista 64, the first DWORD
-     value in the datastructure lpReserved2 is pointing to (msv_count in
-     Cygwin), has to reflect the size of that datastructure as used in the
-     Microsoft C runtime (a count value, counting the number of elements in
-     two subsequent arrays, BYTE[count and HANDLE[count]), even though the C
-     runtime isn't used.  Otherwise, if msv_count is 0 or too small, the
-     datastructure gets overwritten.
-
-     This seems to be a bug in Vista's WOW64, which apparently copies the
-     lpReserved2 datastructure not using the cbReserved2 size information,
-     but using the information given in the first DWORD within lpReserved2
-     instead.  However, it's not clear if a non-0 count doesn't result in
-     trying to evaluate the content, so we do this really only for Vista 64.
-
-     The value is sizeof (child_info_*) / 5 which results in a count which
-     covers the full datastructure, plus not more than 4 extra bytes.  This
-     is ok as long as the child_info structure is cosily stored within a bigger
-     datastructure. */
-  msv_count = wincap.needs_count_in_si_lpres2 () ? in_cb / 5 : 0;
-
   fhandler_union_cb = sizeof (fhandler_union);
   user_h = cygwin_user_h;
   if (strace.active ())
@@ -865,14 +933,7 @@ child_info::child_info (unsigned in_cb, child_info_types chtype,
   DWORD perms = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ
 		| PROCESS_VM_OPERATION | SYNCHRONIZE;
   if (type == _CH_FORK)
-    {
-      perms |= PROCESS_DUP_HANDLE;
-      /* VirtualQueryEx is documented to require PROCESS_QUERY_INFORMATION.
-	 That's true for Windows 7, but PROCESS_QUERY_LIMITED_INFORMATION
-	 appears to be sufficient on Windows 8 and later. */
-      if (wincap.needs_query_information ())
-	perms |= PROCESS_QUERY_INFORMATION;
-    }
+    perms |= PROCESS_DUP_HANDLE;
 
   if (!DuplicateHandle (GetCurrentProcess (), GetCurrentProcess (),
 			GetCurrentProcess (), &parent, perms, TRUE, 0))
@@ -887,6 +948,12 @@ child_info::~child_info ()
 child_info_fork::child_info_fork () :
   child_info (sizeof *this, _CH_FORK, true),
   forker_finished (NULL)
+{
+}
+
+child_info_spawn::child_info_spawn (child_info_types chtype) :
+  child_info (sizeof *this, chtype, false), hExeced (NULL), ev (NULL),
+  sem (NULL), moreinfo (NULL)
 {
 }
 
@@ -914,7 +981,6 @@ cygheap_exec_info::alloc ()
 					 sizeof (cygheap_exec_info)
 					 + (chld_procs.count ()
 					    * sizeof (children[0])));
-  res->sigmask = _my_tls.sigmask;
   return res;
 }
 
@@ -1109,7 +1175,7 @@ child_info::proc_retry (HANDLE h)
   if (!exit_code)
     return EXITCODE_OK;
   sigproc_printf ("exit_code %y", exit_code);
-  switch (exit_code)
+  switch ((NTSTATUS) exit_code)
     {
     case STILL_ACTIVE:	/* shouldn't happen */
       sigproc_printf ("STILL_ACTIVE?  How'd we get here?");
@@ -1168,7 +1234,7 @@ child_info_fork::abort (const char *fmt, ...)
 /* Check the state of all of our children to see if any are stopped or
  * terminated.
  */
-static int __reg1
+static int
 checkstate (waitq *parent_w)
 {
   int potential_match = 0;
@@ -1314,24 +1380,91 @@ talktome (siginfo_t *si)
     new cygthread (commune_process, size, si, "commune");
 }
 
-/* Add a packet to the beginning of the queue.
+static inline bool
+is_sigsys (int sig)
+{
+  return sig == SIGKILL || sig == SIGSTOP || sig == SIGCONT;
+}
+
+static inline bool
+is_sigrt (int sig)
+{
+  return sig >= SIGRTMIN && sig <= SIGRTMAX;
+}
+
+static inline bool
+is_sigsysrt (int sig)
+{
+  return is_sigsys (sig) || is_sigrt (sig);
+}
+
+/* Add a packet to the end of the queue to process signals
+   in the order they are issued except for SIGRT*.
    Should only be called from signal thread.  */
 void
 pending_signals::add (sigpacket& pack)
 {
-  sigpacket *se;
+  sigpacket *se = NULL, *q = &start;
+  bool queue_once = !is_sigsysrt (pack.si.si_signo)
+    && !(global_sigs[pack.si.si_signo].sa_flags & SA_SIGINFO);
 
-  se = sigs + pack.si.si_signo;
-  if (se->si.si_signo)
-    return;
-  *se = pack;
-  se->next = start.next;
-  start.next = se;
+  lock ();
+  if (pack.si.si_signo != SIGKILL)
+    while (q->next)
+      {
+	/* Linux man signal(7) says:
+	   "If different real-time signals are sent to a process, they are
+	   delivered starting with the lowest-numbered signal." */
+	if (is_sigrt (q->next->si.si_signo) && is_sigrt (pack.si.si_signo)
+	    && q->next->si.si_signo > pack.si.si_signo)
+	  break;
+	/* Linux man signal(7) says:
+	   "If both standard and real-time signals are pending for a process,
+	   POSIX leaves it unspecified which is delivered first.  Linux, like
+	   many other implementations, gives priority to standard signals in
+	   this case." */
+	if (is_sigrt (q->next->si.si_signo) && !is_sigrt (pack.si.si_signo))
+	  break;
+	q = q->next;
+	/* Linux man signal(7) says:
+	   "if multiple instances of a standard signal are delivered while
+	   that signal is currently blocked, then only one instance is
+	   queued." */
+	/* POSIX.1-2004 says on sigaction():
+	   "If SA_SIGINFO is set in sa_flags, then subsequent occurrences
+	   of sig generated by sigqueue() or as a result of any signal-
+	   generating function that supports the specification of an
+	   application-defined value (when sig is already pending) shall
+	   be queued in FIFO order until delivered or accepted;" */
+	if (queue_once && q->si.si_signo == pack.si.si_signo)
+	  {
+	    unlock ();
+	    return;
+	  }
+      }
+
+  assert (queue_left > 0);
+  for (int i = 0; i < SIGQUEUE_MAX; i++)
+    if (sigs[i].si.si_signo == 0)
+      {
+	se = sigs + i;
+	*se = pack;
+	break;
+      }
+  assert (se != NULL);
+  queue_left--;
+
+  if (q->next)
+    q->next->prev = se;
+  se->next = q->next;
+  se->prev = q;
+  q->next = se;
+  unlock ();
 }
 
 /* Process signals by waiting for signal data to arrive in a pipe.
    Set a completion event if one was specified. */
-static void WINAPI
+static void
 wait_sig (VOID *)
 {
   _sig_tls = &_my_tls;
@@ -1342,12 +1475,26 @@ wait_sig (VOID *)
 
   hntdll = GetModuleHandle ("ntdll.dll");
 
+  /* GetTickCount() here is enough because GetTickCount() - t0 does
+     not overflow until 49 days psss. Even if GetTickCount() overflows,
+     GetTickCount() - t0 returns correct value, since underflow in
+     unsigned wraps correctly. Pending a signal for more than 49
+     days makes no sense. */
+  DWORD t0 = GetTickCount ();
   for (;;)
     {
       DWORD nb;
       sigpacket pack = {};
-      if (sigq.retry)
+      if (sigq.retry || sigq.queue_left == 0)
 	pack.si.si_signo = __SIGFLUSH;
+      else if (sigq.start.next
+	       && PeekNamedPipe (my_readsig, NULL, 0, NULL, &nb, NULL) && !nb)
+	{
+	  yield ();
+	  if (sig_held || GetTickCount () - t0 > 10)
+	    WaitForSingleObject (sigflush_evt, 1);
+	  pack.si.si_signo = __SIGFLUSH;
+	}
       else if (!ReadFile (my_readsig, &pack, sizeof (pack), &nb, NULL))
 	Sleep (INFINITE);	/* Assume were exiting.  Never exit this thread */
       else if (nb != sizeof (pack) || !pack.si.si_signo)
@@ -1355,24 +1502,39 @@ wait_sig (VOID *)
 	  system_printf ("garbled signal pipe data nb %u, sig %d", nb, pack.si.si_signo);
 	  continue;
 	}
+      if (pack.si.si_signo != __SIGFLUSH)
+	t0 = GetTickCount ();
 
       sigq.retry = false;
       /* Don't process signals when we start exiting */
       if (exit_state > ES_EXIT_STARTING && pack.si.si_signo > 0)
-	continue;
+	goto skip_process_signal;
 
       sigset_t dummy_mask;
       threadlist_t *tl_entry;
       if (!pack.mask)
 	{
-	  tl_entry = cygheap->find_tls (_main_tls);
-	  dummy_mask = _main_tls->sigmask;
-	  cygheap->unlock_tls (tl_entry);
+	  /* There's a short time at process startup of a forked process,
+	     when _main_tls points to the system-allocated stack, not to
+	     the parent thread. In that case find_tls fails, and we fetch
+	     the sigmask from the child_info passed from the parent. */
+	  if (cygwin_finished_initializing)
+	    {
+	      tl_entry = cygheap->find_tls (_main_tls);
+	      dummy_mask = _main_tls->sigmask;
+	      cygheap->unlock_tls (tl_entry);
+	    }
+	  else if (child_proc_info)
+	    dummy_mask = child_proc_info->sigmask;
+	  else
+	    dummy_mask = 0;
 	  pack.mask = &dummy_mask;
 	}
 
-      sigpacket *q = &sigq.start;
-      bool clearwait = false;
+      sigpacket *q;
+      q = &sigq.start;
+      bool clearwait;
+      clearwait = false;
       switch (pack.si.si_signo)
 	{
 	case __SIGCOMMUNE:
@@ -1381,12 +1543,36 @@ wait_sig (VOID *)
 	case __SIGSTRACE:
 	  strace.activate (false);
 	  break;
+	case __SIGPENDINGALL:
+	  {
+	    unsigned bit;
+	    bool issig_wait;
+
+	    *pack.mask = 0;
+	    sigq.lock ();
+	    while ((q = q->next))
+	      {
+		_cygtls *sigtls = q->sigtls ?: _main_tls;
+		if (sigtls->sigmask & (bit = SIGTOMASK (q->si.si_signo)))
+		  {
+		    tl_entry = cygheap->find_tls (q->si.si_signo, issig_wait);
+		    if (tl_entry)
+		      {
+			*pack.mask |= bit;
+			cygheap->unlock_tls (tl_entry);
+		      }
+		  }
+	      }
+	    sigq.unlock ();
+	  }
+	  break;
 	case __SIGPENDING:
 	  {
 	    unsigned bit;
 
 	    *pack.mask = 0;
 	    tl_entry = cygheap->find_tls (pack.sigtls);
+	    sigq.lock ();
 	    while ((q = q->next))
 	      {
 		/* Skip thread-specific signals for other threads. */
@@ -1395,6 +1581,7 @@ wait_sig (VOID *)
 		if (pack.sigtls->sigmask & (bit = SIGTOMASK (q->si.si_signo)))
 		  *pack.mask |= bit;
 	      }
+	    sigq.unlock ();
 	    cygheap->unlock_tls (tl_entry);
 	  }
 	  break;
@@ -1402,7 +1589,8 @@ wait_sig (VOID *)
 	  sig_held = true;
 	  break;
 	case __SIGSETPGRP:
-	  init_console_handler (true);
+	  init_console_handler (::cygheap->ctty
+				&& ::cygheap->ctty->is_console ());
 	  break;
 	case __SIGTHREADEXIT:
 	  {
@@ -1428,7 +1616,7 @@ wait_sig (VOID *)
 	  break;
 	default:	/* Normal (positive) signal */
 	  if (pack.si.si_signo < 0)
-	    sig_clear (-pack.si.si_signo);
+	    sig_clear (-pack.si.si_signo, true);
 	  else
 	    sigq.add (pack);
 	  fallthrough;
@@ -1439,19 +1627,28 @@ wait_sig (VOID *)
 	case __SIGFLUSHFAST:
 	  if (!sig_held)
 	    {
-	      sigpacket *qnext;
 	      /* Check the queue for signals.  There will always be at least one
 		 thing on the queue if this was a valid signal.  */
-	      while ((qnext = q->next))
+	      sigq.lock ();
+	      while ((q = q->next))
 		{
-		  if (qnext->si.si_signo && qnext->process () <= 0)
-		    q = qnext;
-		  else
+		  if (q->si.si_signo && q->process () > 0)
 		    {
-		      q->next = qnext->next;
-		      qnext->si.si_signo = 0;
+		      q->si.si_signo = 0;
+		      q->prev->next = q->next;
+		      if (q->next)
+			q->next->prev = q->prev;
+		      sigq.queue_left++;
 		    }
+		  else if (is_sigsysrt (q->si.si_signo)
+		       || ((global_sigs[q->si.si_signo].sa_flags & SA_SIGINFO)
+			   && NOTSTATE (myself, PID_STOPPED)))
+		    /* Stop processing further to prevent the signals from
+		       being processed in a disorderd manner if the signal
+		       is a realtime signal or SA_SIGINFO is set. */
+		    break;
 		}
+	      sigq.unlock ();
 	      /* At least one signal still queued?  The event is used in select
 		 only, and only to decide if WFMO should wake up in case a
 		 signalfd is waiting via select/poll for being ready to read a
@@ -1469,6 +1666,8 @@ wait_sig (VOID *)
 	}
       if (clearwait && !have_execed)
 	proc_subproc (PROC_CLEARWAIT, 0);
+skip_process_signal:
+      SetEvent (sigflush_done_evt);
       if (pack.wakeup)
 	{
 	  sigproc_printf ("signalling pack.wakeup %p", pack.wakeup);

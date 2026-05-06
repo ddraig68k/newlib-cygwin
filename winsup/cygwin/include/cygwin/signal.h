@@ -19,7 +19,7 @@ extern "C" {
   Define a struct __mcontext, which should be identical in layout to the Win32
   API type CONTEXT with the addition of oldmask and cr2 fields at the end.
 */
-#ifdef __x86_64__
+#if defined(__x86_64__)
 
 struct _uc_fpxreg {
   __uint16_t significand[4];
@@ -98,67 +98,88 @@ struct __attribute__ ((__aligned__ (16))) __mcontext
   __uint64_t cr2;
 };
 
-#else /* !x86_64 */
+#elif defined(__aarch64__)
 
-struct _uc_fpreg
+/* Based on mingw-w64-headers/include/winnt.h. */
+
+#define ARM64_MAX_BREAKPOINTS 8
+#define ARM64_MAX_WATCHPOINTS 2
+
+union _neon128
 {
-  __uint16_t significand[4];
-  __uint16_t exponent;
+  struct
+  {
+    __uint64_t low;
+    __int64_t high;
+  };
+  double d[2];
+  float s[4];
+  __uint16_t h[8];
+  __uint8_t b[16];
 };
 
-struct _fpstate
-{
-  __uint32_t cw;
-  __uint32_t sw;
-  __uint32_t tag;
-  __uint32_t ipoff;
-  __uint32_t cssel;
-  __uint32_t dataoff;
-  __uint32_t datasel;
-  struct _uc_fpreg _st[8];
-  __uint32_t nxst;
-};
-
-struct __mcontext
+struct __attribute__ ((__aligned__ (16))) __mcontext
 {
   __uint32_t ctxflags;
-  __uint32_t dr0;
-  __uint32_t dr1;
-  __uint32_t dr2;
-  __uint32_t dr3;
-  __uint32_t dr6;
-  __uint32_t dr7;
-  struct _fpstate fpstate;
-  __uint32_t gs;
-  __uint32_t fs;
-  __uint32_t es;
-  __uint32_t ds;
-  __uint32_t edi;
-  __uint32_t esi;
-  __uint32_t ebx;
-  __uint32_t edx;
-  __uint32_t ecx;
-  __uint32_t eax;
-  __uint32_t ebp;
-  __uint32_t eip;
-  __uint32_t cs;
-  __uint32_t eflags;
-  __uint32_t esp;
-  __uint32_t ss;
-  __uint32_t reserved[128];
-  __uint32_t oldmask;
-  __uint32_t cr2;
+  __uint32_t cpsr;
+  union
+  {
+    struct
+    {
+      __uint64_t x0;
+      __uint64_t x1;
+      __uint64_t x2;
+      __uint64_t x3;
+      __uint64_t x4;
+      __uint64_t x5;
+      __uint64_t x6;
+      __uint64_t x7;
+      __uint64_t x8;
+      __uint64_t x9;
+      __uint64_t x10;
+      __uint64_t x11;
+      __uint64_t x12;
+      __uint64_t x13;
+      __uint64_t x14;
+      __uint64_t x15;
+      __uint64_t x16;
+      __uint64_t x17;
+      __uint64_t x18;
+      __uint64_t x19;
+      __uint64_t x20;
+      __uint64_t x21;
+      __uint64_t x22;
+      __uint64_t x23;
+      __uint64_t x24;
+      __uint64_t x25;
+      __uint64_t x26;
+      __uint64_t x27;
+      __uint64_t x28;
+      __uint64_t fp;
+      __uint64_t lr;
+    };
+    __uint64_t x[31];
+  };
+  __uint64_t sp;
+  __uint64_t pc;
+  union _neon128 v[32];
+  __uint32_t fpcr;
+  __uint32_t fpsr;
+  __uint32_t bcr[ARM64_MAX_BREAKPOINTS];
+  __uint64_t bvr[ARM64_MAX_BREAKPOINTS];
+  __uint32_t wcr[ARM64_MAX_WATCHPOINTS];
+  __uint64_t wvr[ARM64_MAX_WATCHPOINTS];
+  __uint64_t oldmask;
+  __uint64_t cr2;
 };
 
-#endif /* !x86_64 */
+#else
+#error unimplemented for this target
+#endif
 
 /* Needed for GDB.  It only compiles in the context copy code if this macro is
    defined.  This is not sizeof(CONTEXT) due to historical accidents. */
-#ifdef __x86_64__
 #define __COPY_CONTEXT_SIZE 816
-#else
-#define __COPY_CONTEXT_SIZE 204
-#endif
 
 typedef union sigval
 {
@@ -437,11 +458,7 @@ struct sigaction
 #define	SIGUSR1 30	/* user defined signal 1 */
 #define	SIGUSR2 31	/* user defined signal 2 */
 
-#if __WORDSIZE == 64
 #define _NSIG	65      /* signal 0 implied */
-#else
-#define _NSIG	33      /* signal 0 implied */
-#endif
 
 #if __MISC_VISIBLE
 #define NSIG	_NSIG

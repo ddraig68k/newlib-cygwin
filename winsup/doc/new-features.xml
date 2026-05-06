@@ -4,6 +4,376 @@
 
 <sect1 id="ov-new"><title>What's new and what changed in Cygwin</title>
 
+<sect2 id="ov-new3.6"><title>What's new and what changed in 3.6</title>
+
+<itemizedlist mark="bullet">
+
+<listitem><para>
+New API calls: tcgetwinsize, tcsetwinsize.
+</para></listitem>
+
+<listitem><para>
+New API call: getlocalename_l.
+</para></listitem>
+
+<listitem><para>
+New API calls: fdclosedir, posix_getdents.
+</para></listitem>
+
+<listitem><para>
+New API call: setproctitle.
+</para></listitem>
+
+<listitem><para>
+New API call: timespec_get.
+</para></listitem>
+
+<listitem><para>
+New API calls: tcgetwinsize, tcsetwinsize.
+</para></listitem>
+
+<listitem><para>
+New API call: posix_close.
+</para></listitem>
+
+<listitem><para>
+New POSIX-defined entry points posix_spawn_file_actions_addchdir and
+posix_spawn_file_actions_addfchdir.  These are the same as the already
+exported posix_spawn_file_actions_addchdir_np and
+posix_spawn_file_actions_addfchdir_np.
+</para></listitem>
+
+<listitem><para>
+Add FS_IOC_[GS]ETFLAGS FS_PINNED_FL and FS_UNPINNED_FL flags to handle
+Windows attributes FILE_ATTRIBUTE_PINNED and FILE_ATTRIBUTE_UNPINNED.
+Add matching 'p' and 'u' mode bits in chattr(1) and lsattr(1).
+</para></listitem>
+
+<listitem><para>
+New libaio.a provided for projects checking for POSIX aio support by
+looking for this library at configure time.
+</para></listitem>
+
+<listitem><para>
+cygpath -r option allows to generate all Windows paths with root-local
+path prefix \\?\.
+</para></listitem>
+
+<listitem><para>
+ps -f now prints the commandline rather than the full path to the
+executable.
+</para></listitem>
+
+<listitem><para>
+Drop workarounds for connecting with NT4 and Samba &lt; 3.0.22 shares.
+</para></listitem>
+
+<listitem><para>
+Now that SMBv1 is ultimately deprecated and not installed by default on
+latest Windows versions, use Network Discovery (i. e. WSD, "Web Service
+Discovery") for enumerating network servers in //, just like Windows
+Explorer.
+</para></listitem>
+
+<listitem><para>
+If "server" is given as FQDN, and if "server" is an NFS server, ls
+//server now also enumerates NFS shares.  If "server" is given as a flat
+name, only SMB shares are enumerated.
+</para></listitem>
+
+<listitem><para>
+Expose WebDav shares, //tsclient (Microsoft Terminal Services) shares as
+well as //wsl$ (Plan 9 Network Provider) shares, i. e., WSL installation
+root dirs.
+</para></listitem>
+
+<listitem><para>
+Redesign pipe handling to minimize toggling blocking mode.  The
+query_hdl stuff is no longer needed in new implementation.
+</para></listitem>
+
+<listitem><para>
+Now using AVX/AVX2/AVX-512 instructions in signal handler does not break
+their context.
+</para></listitem>
+
+<listitem><para>
+nice(2), setpriority(2) and sched_setparam(2) now fail with EACCES or
+EPERM if Windows would silently set a lower priority
+(HIGH_PRIORITY_CLASS instead of REALTIME_PRIORITY_CLASS) due to missing
+administrator privileges.
+</para></listitem>
+
+<listitem><para>
+nice(2) now returns the new nice value instead of 0 on success and sets
+errno to EPERM instead of EACCES on failure.  This confirms to POSIX and
+Linux (glibc &gt;= 2.2.4) behavior.
+</para></listitem>
+
+<listitem><para>
+sched_setscheduler(2) now emulates changes between SCHED_OTHER,
+SCHED_BATCH, SCHED_IDLE, SCHED_FIFO and SCHED_RR.  If SCHED_OTHER or
+SCHED_BATCH is selected, the Windows priority is set according to the
+nice value where SCHED_BATCH sets a one step lower priority.  If
+SCHED_IDLE is selected, the nice value is preserved and the Windows
+priority is set to IDLE_PRIORITY_CLASS.  If SCHED_FIFO or SCHED_RR is
+selected, the nice value is preserved and the Windows priority is set
+according to the realtime priority.  If the SCHED_RESET_ON_FORK flag is
+set, SCHED_FIFO and SCHED_RR are reset to SCHED_OTHER and negative nice
+values are reset to zero in each child process created with fork(2).
+Note: Windows does not offer alternative scheduling policies so this
+could only emulate API behavior.
+</para></listitem>
+
+<listitem><para>
+If SCHED_FIFO or SCHED_RR is selected, the /proc/&lt;PID&gt;/stat field '(18)
+priority' is now set to the negated sched_policy minus one.  If
+SCHED_IDLE is selected, this field is set to 39.  The '(19) nice' field
+is now set to the originally requested nice value.
+</para></listitem>
+
+<listitem><para>
+Raise maximum pid from 65536 to 4194304 to account for scenarios with
+lots of CPUs and lots of tasks.
+</para></listitem>
+
+<listitem><para>
+Allow mmap with MAP_FIXED to succeed on an address range contained in
+the chunk of an existing anonymous mapping, provided the
+MAP_SHARED/MAP_PRIVATE flags agree and MAP_NORESERVE is not set for
+either mapping.
+</para></listitem>
+
+<listitem><para>
+Fix a long-standing hang issue when running on ARM64 under emulation.
+This was due to a thread being terminated while the emulation was
+holding an internal lock.
+</para></listitem>
+
+<listitem><para>
+Add a host machine tag to uname(2)'s sysname field.  This echoes what
+used to be done with -WOW64 (when that was supported), but now with
+-ARM64 when running on an ARM64 host under emulation.  The Cygwin DLL's
+own architecture continues to be reported in the machine field.
+</para></listitem>
+
+<listitem><para>
+Escape special characters in /proc/&lt;PID&gt;/mount*.  This allows the
+contents to be parsed consistently, and matches what is done on Linux.
+</para></listitem>
+
+<listitem><para>
+Expose all Windows volume mount points via getmntent(3).  This also
+exposes them via /proc/&gt;PID&gt;/mount*.  A change in behavior from
+previous Cygwin versions is that volumes whose root is mounted
+explicitly in Cygwin will now also show up as mounted under the cygdrive
+prefix, whereas before that entry would have been suppressed.
+</para></listitem>
+
+</itemizedlist>
+
+</sect2>
+
+<sect2 id="ov-new3.5"><title>What's new and what changed in 3.5</title>
+
+<itemizedlist mark="bullet">
+
+<listitem><para>
+Drop support for Windows 7, Windows 8, Server 2008 R2 and Server 2012.
+</para></listitem>
+
+<listitem><para>
+Console devices (/dev/consN) are now accessible by processes attached to other
+consoles or ptys. Thanks to this new feature, GNU screen and tmux now work in
+the console.
+</para></listitem>
+
+<listitem><para>
+newgrp(1) tool.
+</para></listitem>
+
+<listitem><para>
+cygcheck has new options searching for available packages in the
+cygwin distro, as well as getting extended info on available and
+installed packages.
+</para></listitem>
+
+<listitem><para>
+fnmatch(3) and glob(3) now support named character classes, equivalence
+class expressions, and collating symbols in the search pattern, i.e.,
+[:alnum:], [=a=], [.aa.].
+</para></listitem>
+
+<listitem><para>
+Introduce /dev/disk directory with various by-* subdirectories which
+provide symlinks to disk and partition raw devices:
+  <screen>
+  by-drive/DRIVE_LETTER ->  ../../sdXN
+  by-label/VOLUME_LABEL ->  ../../sdXN
+  by-id/BUSTYPE-[VENDOR_]PRODUCT_[SERIAL|0xHASH][-partN] -> ../../sdX[N]
+  by-partuuid/MBR_SERIAL-OFFSET -> ../../sdXN
+  by-partuuid/GPT_GUID -> ../../sdXN
+  by-uuid/VOLUME_SERIAL -> ../../sdXN
+  by-voluuid/MBR_SERIAL-OFFSET -> ../../sdXN
+  by-voluuid/VOLUME_GUID -> ../../sdXN
+  </screen>
+The subdirectories by-drive and by-voluuid are Cygwin specific.
+</para></listitem>
+
+<listitem><para>
+Introduce /proc/codesets and /proc/locales with information on supported
+codesets and locales for all interested parties.  Locale(1) opens these
+files and uses the info for printing locale info like any other process
+could do.
+</para></listitem>
+
+<listitem><para>
+Add support for GB18030 codeset.
+</para></listitem>
+
+<listitem><para>
+Add support for lseek flags SEEK_DATA and SEEK_HOLE, a GNU extension.
+</para></listitem>
+
+<listitem><para>
+New API calls: posix_spawn_file_actions_addchdir_np,
+posix_spawn_file_actions_addfchdir_np.
+</para></listitem>
+
+<listitem><para>
+New API calls: c8rtomb, c16rtomb, c32rtomb, mbrtoc8, mbrtoc16, mbrtoc32.
+</para></listitem>
+
+<listitem><para>
+New API call: close_range (available on FreeBSD and Linux).
+</para></listitem>
+
+<listitem><para>
+New API call: fallocate (Linux-specific).
+</para></listitem>
+
+<listitem><para>
+posix_spawnp no longer falls back to starting the shell for unrecognized
+files as execvp.  For the reasoning, see
+https://www.austingroupbugs.net/view.php?id=1674
+</para></listitem>
+
+<listitem><para>
+FIFOs now also work on NFS filesystems.
+</para></listitem>
+
+<listitem><para>
+Enable automatic sparsifying of files on SSDs, independent of the
+"sparse" mount mode.
+</para></listitem>
+
+<listitem><para>
+When RLIMIT_CORE is more than 1MB, a core dump file which can be loaded by gdb
+is now written on a fatal error. Otherwise, if it's greater than zero, a text
+format .stackdump file is written, as previously.
+</para></listitem>
+
+<listitem><para>
+The default RLIMIT_CORE is now 0, disabling the generation of core dump or
+stackdump files. Use e.g. <code>ulimit -c unlimited</code> or <code>ulimit -c
+1024</code> to enable them again.
+</para></listitem>
+
+</itemizedlist>
+
+</sect2>
+
+<sect2 id="ov-new3.4"><title>What's new and what changed in 3.4</title>
+
+<itemizedlist mark="bullet">
+
+<listitem><para>
+Drop support for Vista and Server 2008.
+</para></listitem>
+
+<listitem><para>
+Drop support for 32 bit Windows and WOW64.
+</para></listitem>
+
+<listitem><para>
+Allow to run with full ASLR enabled and enable on Cygwin DLL by default.
+</para></listitem>
+
+<listitem><para>
+Remove any special handling for the .com filename suffix. It has to
+be used always explicitely.
+</para></listitem>
+
+<listitem><para>
+Add code to handle setrlimit(RLIMIT_AS).
+</para></listitem>
+
+<listitem><para>
+Add code to handle signal masks in /proc/&lt;PID&gt;/status.
+</para></listitem>
+
+<listitem><para>
+The CYGWIN=pipe_byte option is now set by default, so that pipes are
+opened in byte mode rather than message mode.
+</para></listitem>
+
+<listitem><para>
+Handle UDP_SEGMENT and UDP_GRO socket options.
+</para></listitem>
+
+<listitem><para>
+The stdio input functions no longer try again to read after EOF.
+</para></listitem>
+
+<listitem><para>
+The default values of FD_SETSIZE and NOFILE are now 1024 and 3200,
+respectively.
+</para></listitem>
+
+</itemizedlist>
+
+</sect2>
+
+<sect2 id="ov-new3.3"><title>What's new and what changed in 3.3</title>
+
+<itemizedlist mark="bullet">
+
+<listitem><para>
+An IP-sampling profiler named 'profiler' has been added.  It can be used
+to profile any Cygwin program along with any DLLs loaded.
+</para></listitem>
+
+<listitem><para>
+A new tool 'gmondump' has been added.  It can dump the raw information
+of any "gmon.out" file created by profiler, ssp, or use of the gcc/g++
+option '-pg'.  (Continue using gprof to get symbolic profile displays.)
+</para></listitem>
+
+<listitem><para>
+New GNU-specific APIs, slated to become part of the next POSIX standard:
+pthread_cond_clockwait, pthread_mutex_clocklock, pthread_rwlock_clockrdlock,
+pthread_rwlock_clockwrlock, sem_clockwait.
+</para></listitem>
+
+<listitem><para>
+New Solaris-specific APIs, slated to become part of the next POSIX standard:
+sig2str, str2sig.
+</para></listitem>
+
+<listitem><para>
+The speed argument to cfsetspeed(3) can now be a numerical baud rate
+rather than a Bnnn constant, as on Linux.
+</para></listitem>
+
+<listitem><para>
+The internal implementation of pipes has been overhauled; this should
+result in improved performance.
+</para></listitem>
+
+</itemizedlist>
+
+</sect2>
+
 <sect2 id="ov-new3.2"><title>What's new and what changed in 3.2</title>
 
 <itemizedlist mark="bullet">
@@ -71,9 +441,14 @@ facl(2) now fails with EBADF on a file opened with O_PATH.
 </para></listitem>
 
 <listitem><para>
-- Allow to start Windows Store executables via their "app execution
-  aliases".  Handle these aliases (which are special reparse points)
-  as symlinks to the actual executables.
+Allow to start Windows Store executables via their "app execution
+aliases".  Handle these aliases (which are special reparse points)
+as symlinks to the actual executables.
+</para></listitem>
+
+<listitem><para>
+The speed argument to cfsetspeed(3) can now be a numerical baud rate
+rather than a Bnnn constant, as on Linux.
 </para></listitem>
 
 </itemizedlist>
@@ -471,7 +846,7 @@ Support for /proc/&lt;PID&gt;/environ.
 </para></listitem>
 
 <listitem><para>
-- New API: getentropy, getrandom.
+New API: getentropy, getrandom.
 </para></listitem>
 
 </itemizedlist>

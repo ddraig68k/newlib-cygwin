@@ -31,8 +31,6 @@ extern "C"
 #define PTHREAD_CANCEL_DEFERRED 0
 #define PTHREAD_CANCEL_DISABLE 1
 #define PTHREAD_CANCELED ((void *)-1)
-/* this should be a value that can never be a valid address */
-#define PTHREAD_COND_INITIALIZER (pthread_cond_t)21
 #define PTHREAD_CREATE_DETACHED 1
 /* the default : joinable */
 #define PTHREAD_CREATE_JOINABLE 0
@@ -42,10 +40,6 @@ extern "C"
 #define PTHREAD_MUTEX_ERRORCHECK 1
 #define PTHREAD_MUTEX_NORMAL 2
 #define PTHREAD_MUTEX_DEFAULT PTHREAD_MUTEX_NORMAL
-/* this should be too low to ever be a valid address */
-#define PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP (pthread_mutex_t)18
-#define PTHREAD_NORMAL_MUTEX_INITIALIZER_NP (pthread_mutex_t)19
-#define PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP (pthread_mutex_t)20
 #define PTHREAD_MUTEX_INITIALIZER PTHREAD_NORMAL_MUTEX_INITIALIZER_NP
 #define PTHREAD_ONCE_INIT { PTHREAD_MUTEX_INITIALIZER, 0 }
 #if defined(_POSIX_THREAD_PRIO_INHERIT) && _POSIX_THREAD_PRIO_INHERIT >= 0
@@ -55,11 +49,34 @@ extern "C"
 #endif
 #define PTHREAD_PROCESS_SHARED 1
 #define PTHREAD_PROCESS_PRIVATE 0
-#define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t)22
 /* process is the default */
 #define PTHREAD_SCOPE_PROCESS 0
 #define PTHREAD_SCOPE_SYSTEM 1
 #define PTHREAD_BARRIER_SERIAL_THREAD (-1)
+
+/* This condition matches the one in <sys/_pthreadtypes.h> */
+#if !defined(__INSIDE_CYGWIN__) || !defined(__cplusplus)
+/* Constants for initializer macros */
+extern struct __pthread_mutex_t __pthread_recursive_mutex_initializer_np;
+extern struct __pthread_mutex_t __pthread_normal_mutex_initializer_np;
+extern struct __pthread_mutex_t __pthread_errorcheck_mutex_initializer_np;
+extern struct __pthread_cond_t __pthread_cond_initializer;
+extern struct __pthread_rwlock_t __pthread_rwlock_initializer;
+#define PTHREAD_COND_INITIALIZER (&__pthread_cond_initializer)
+#define PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP (&__pthread_recursive_mutex_initializer_np)
+#define PTHREAD_NORMAL_MUTEX_INITIALIZER_NP (&__pthread_normal_mutex_initializer_np)
+#define PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP (&__pthread_errorcheck_mutex_initializer_np)
+#define PTHREAD_RWLOCK_INITIALIZER (&__pthread_rwlock_initializer)
+#else
+/* Inside the Cygwin DLL's C++ code, using absolute linker symbols sometimes
+   results in "relocation truncated to fit" errors due to being built with
+   -mcmodel=small. */
+#define PTHREAD_COND_INITIALIZER (pthread_cond_t)21
+#define PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP (pthread_mutex_t)18
+#define PTHREAD_NORMAL_MUTEX_INITIALIZER_NP (pthread_mutex_t)19
+#define PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP (pthread_mutex_t)20
+#define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t)22
+#endif
 
 /* Register Fork Handlers */
 int pthread_atfork (void (*)(void), void (*)(void), void (*)(void));
@@ -110,16 +127,23 @@ typedef struct _pthread_cleanup_handler
 void _pthread_cleanup_push (__pthread_cleanup_handler *handler);
 void _pthread_cleanup_pop (int execute);
 
-#define pthread_cleanup_push(_fn, _arg) { __pthread_cleanup_handler __cleanup_handler = \
-					 { _fn, _arg, NULL }; \
-					 _pthread_cleanup_push( &__cleanup_handler );
-#define pthread_cleanup_pop(_execute) _pthread_cleanup_pop( _execute ); }
+#define pthread_cleanup_push(_fn, _arg) \
+  do { \
+    __pthread_cleanup_handler __cleanup_handler = { _fn, _arg, NULL }; \
+    _pthread_cleanup_push(&__cleanup_handler)
+#define pthread_cleanup_pop(_execute) \
+    _pthread_cleanup_pop(_execute); \
+  } while (0)
 
 /* Condition variables */
 int pthread_cond_broadcast (pthread_cond_t *);
 int pthread_cond_destroy (pthread_cond_t *);
 int pthread_cond_init (pthread_cond_t *, const pthread_condattr_t *);
 int pthread_cond_signal (pthread_cond_t *);
+#if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
+int pthread_cond_clockwait (pthread_cond_t *, pthread_mutex_t *,
+			    clockid_t, const struct timespec *);
+#endif
 int pthread_cond_timedwait (pthread_cond_t *,
 			    pthread_mutex_t *, const struct timespec *);
 int pthread_cond_wait (pthread_cond_t *, pthread_mutex_t *);
@@ -163,6 +187,10 @@ int pthread_mutex_getprioceiling (const pthread_mutex_t *, int *);
 int pthread_mutex_init (pthread_mutex_t *, const pthread_mutexattr_t *);
 int pthread_mutex_lock (pthread_mutex_t *);
 int pthread_mutex_setprioceiling (pthread_mutex_t *, int, int *);
+#if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
+int pthread_mutex_clocklock (pthread_mutex_t *, clockid_t,
+			     const struct timespec *);
+#endif
 int pthread_mutex_timedlock (pthread_mutex_t *, const struct timespec *);
 int pthread_mutex_trylock (pthread_mutex_t *);
 int pthread_mutex_unlock (pthread_mutex_t *);
@@ -188,22 +216,27 @@ int pthread_spin_unlock (pthread_spinlock_t *);
 
 /* RW Locks */
 #if __XSI_VISIBLE >= 500 || __POSIX_VISIBLE >= 200112 || __cplusplus >= 201402L
-int pthread_rwlock_destroy (pthread_rwlock_t *rwlock);
-int pthread_rwlock_init (pthread_rwlock_t *rwlock, const pthread_rwlockattr_t *attr);
-int pthread_rwlock_rdlock (pthread_rwlock_t *rwlock);
-int pthread_rwlock_timedrdlock (pthread_rwlock_t *rwlock,
-				const struct timespec *abstime);
-int pthread_rwlock_tryrdlock (pthread_rwlock_t *rwlock);
-int pthread_rwlock_wrlock (pthread_rwlock_t *rwlock);
-int pthread_rwlock_timedwrlock (pthread_rwlock_t *rwlock,
-				const struct timespec *abstime);
-int pthread_rwlock_trywrlock (pthread_rwlock_t *rwlock);
-int pthread_rwlock_unlock (pthread_rwlock_t *rwlock);
-int pthread_rwlockattr_init (pthread_rwlockattr_t *rwlockattr);
-int pthread_rwlockattr_getpshared (const pthread_rwlockattr_t *attr,
-				   int *pshared);
-int pthread_rwlockattr_setpshared (pthread_rwlockattr_t *attr, int pshared);
-int pthread_rwlockattr_destroy (pthread_rwlockattr_t *rwlockattr);
+int pthread_rwlock_destroy (pthread_rwlock_t *);
+int pthread_rwlock_init (pthread_rwlock_t *, const pthread_rwlockattr_t *);
+int pthread_rwlock_rdlock (pthread_rwlock_t *);
+#if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
+int pthread_rwlock_clockrdlock (pthread_rwlock_t *, clockid_t,
+				const struct timespec *);
+#endif
+int pthread_rwlock_timedrdlock (pthread_rwlock_t *, const struct timespec *);
+int pthread_rwlock_tryrdlock (pthread_rwlock_t *);
+int pthread_rwlock_wrlock (pthread_rwlock_t *);
+#if __GNU_VISIBLE || __POSIX_VISIBLE >= 202405
+int pthread_rwlock_clockwrlock (pthread_rwlock_t *, clockid_t,
+				const struct timespec *);
+#endif
+int pthread_rwlock_timedwrlock (pthread_rwlock_t *, const struct timespec *);
+int pthread_rwlock_trywrlock (pthread_rwlock_t *);
+int pthread_rwlock_unlock (pthread_rwlock_t *);
+int pthread_rwlockattr_init (pthread_rwlockattr_t *);
+int pthread_rwlockattr_getpshared (const pthread_rwlockattr_t *, int *);
+int pthread_rwlockattr_setpshared (pthread_rwlockattr_t *, int);
+int pthread_rwlockattr_destroy (pthread_rwlockattr_t *);
 #endif
 
 int pthread_once (pthread_once_t *, void (*)(void));
@@ -231,7 +264,7 @@ int pthread_getattr_np (pthread_t, pthread_attr_t *);
 int pthread_getname_np (pthread_t, char *, size_t) __attribute__((__nonnull__(2)));
 int pthread_setaffinity_np (pthread_t, size_t, const cpu_set_t *);
 int pthread_setname_np (pthread_t, const char *) __attribute__((__nonnull__(2)));
-int pthread_sigqueue (pthread_t *, int, const union sigval);
+int pthread_sigqueue (pthread_t, int, const union sigval);
 int pthread_timedjoin_np (pthread_t, void **, const struct timespec *);
 int pthread_tryjoin_np (pthread_t, void **);
 #endif

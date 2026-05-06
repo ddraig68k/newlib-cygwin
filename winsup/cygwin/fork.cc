@@ -31,7 +31,7 @@ details. */
 /* FIXME: Once things stabilize, bump up to a few minutes.  */
 #define FORK_WAIT_TIMEOUT (300 * 1000)     /* 300 seconds */
 
-static int dofork (void **proc, bool *with_forkables);
+static int dofork (void **proc, bool do_atfork_handlers, bool *with_forkables);
 class frok
 {
   frok (bool *forkables)
@@ -44,10 +44,10 @@ class frok
   int child_pid;
   int this_errno;
   HANDLE hchild;
-  int __stdcall parent (volatile char * volatile here);
-  int __stdcall child (volatile char * volatile here);
+  int parent (volatile char * volatile here);
+  int child (volatile char * volatile here);
   bool error (const char *fmt, ...);
-  friend int dofork (void **proc, bool *with_forkables);
+  friend int dofork (void **, bool, bool *);
 };
 
 static void
@@ -59,7 +59,7 @@ resume_child (HANDLE forker_finished)
 }
 
 /* Notify parent that it is time for the next step. */
-static void __stdcall
+static void
 sync_with_parent (const char *s, bool hang_self)
 {
   debug_printf ("signalling parent: %s", s);
@@ -131,7 +131,7 @@ child_info::prefork (bool detached)
     }
 }
 
-int __stdcall
+int
 frok::child (volatile char * volatile here)
 {
   HANDLE& hParent = ch.parent;
@@ -151,6 +151,9 @@ frok::child (volatile char * volatile here)
   set_cygwin_privileges (hProcToken);
   clear_procimptoken ();
   cygheap->user.reimpersonate ();
+
+  setup_user_rlimits (false);
+  ch.inherit_process_rlimits ();
 
 #ifdef DEBUGGING
   if (GetEnvironmentVariableA ("FORKDEBUG", NULL, 0))
@@ -187,7 +190,6 @@ frok::child (volatile char * volatile here)
 
   ForceCloseHandle1 (fork_info->forker_finished, forker_finished);
 
-  pthread::atforkchild ();
   cygbench ("fork-child");
   ld_preload ();
   fixup_hooks_after_fork ();
@@ -202,7 +204,7 @@ frok::child (volatile char * volatile here)
   return 0;
 }
 
-int __stdcall
+int
 frok::parent (volatile char * volatile stack_here)
 {
   HANDLE forker_finished;
@@ -212,13 +214,54 @@ frok::parent (volatile char * volatile stack_here)
   bool fix_impersonation = false;
   pinfo child;
 
-  int c_flags = GetPriorityClass (GetCurrentProcess ());
+  /* Inherit scheduling parameters by default. */
+  int child_nice = myself->nice;
+  int child_sched_policy = myself->sched_policy;
+  int c_flags = 0;
+
+  /* Handle SCHED_RESET_ON_FORK flag. */
+  if (myself->sched_reset_on_fork)
+    {
+      bool batch = (myself->sched_policy == SCHED_BATCH);
+      bool idle = (myself->sched_policy == SCHED_IDLE);
+      bool set_prio = false;
+      /* Reset negative nice values to zero. */
+      if (myself->nice < 0)
+	{
+	  child_nice = 0;
+	  set_prio = !idle;
+	}
+      /* Reset realtime policies to SCHED_OTHER. */
+      if (!(myself->sched_policy == SCHED_OTHER || batch || idle))
+	{
+	  child_sched_policy = SCHED_OTHER;
+	  set_prio = true;
+	}
+      if (set_prio)
+	c_flags = nice_to_winprio (child_nice, batch);
+    }
+
+  /* Always request a priority because otherwise anything above
+     NORMAL_PRIORITY_CLASS would not be inherited. */
+  if (!c_flags)
+    c_flags = GetPriorityClass (GetCurrentProcess ());
   debug_printf ("priority class %d", c_flags);
   /* Per MSDN, this must be specified even if lpEnvironment is set to NULL,
      otherwise UNICODE characters in the parent environment are not copied
      correctly to the child.  Omitting it may scramble %PATH% on non-English
      systems. */
   c_flags |= CREATE_UNICODE_ENVIRONMENT;
+
+  /* Despite all our executables having a valid manifest, "mintty" still
+     triggers the "Program Compatibility Assistant (PCA) Service" for
+     some reason, maybe due to some heuristics in PCA.
+     We use job objects for rlimits extensively, so we still have to let
+     child processes breakaway from job.  Otherwise we can't add processes
+     running in different terminals to an already existing per-user job.
+     The check for this situation is now done in setup_user_rlimits()
+     called from dll_crt0_1(). */
+  if (enforce_breakaway_from_job)
+    c_flags |= CREATE_BREAKAWAY_FROM_JOB;
 
   errmsg = NULL;
   hchild = NULL;
@@ -287,6 +330,8 @@ frok::parent (volatile char * volatile stack_here)
   debug_printf ("stack - bottom %p, top %p, addr %p, guardsize %ly",
 		ch.stackbase, ch.stacklimit, ch.stackaddr, ch.guardsize);
 
+  ch.collect_process_rlimits ();
+
   PROCESS_INFORMATION pi;
   STARTUPINFOW si;
 
@@ -296,7 +341,11 @@ frok::parent (volatile char * volatile stack_here)
   si.lpReserved2 = (LPBYTE) &ch;
   si.cbReserved2 = sizeof (ch);
 
-  bool locked = __malloc_lock ();
+  /* NEVER, EVER, call a function which in turn calls malloc&friends while this
+     malloc lock is active! */
+  __malloc_lock ();
+  cygheap->lock ();
+  bool locked = true;
 
   /* Remove impersonation */
   cygheap->user.deimpersonate ();
@@ -308,8 +357,7 @@ frok::parent (volatile char * volatile stack_here)
 
   ch.silentfail (!*with_forkables); /* fail silently without forkables */
 
-  tmp_pathbuf tp;
-  PSECURITY_ATTRIBUTES sa = (PSECURITY_ATTRIBUTES) tp.w_get ();
+  PSECURITY_ATTRIBUTES sa = (PSECURITY_ATTRIBUTES) alloca (1024);
   if (!sec_user_nih (sa, cygheap->user.saved_sid (),
 		     well_known_authenticated_users_sid,
 		     PROCESS_QUERY_LIMITED_INFORMATION))
@@ -351,6 +399,7 @@ frok::parent (volatile char * volatile stack_here)
 	{
 	  this_errno = geterrno_from_win_error ();
 	  error ("CreateProcessW failed for '%W'", myself->progname);
+	  ch.silentfail (true);
 	  dlls.release_forkables ();
 	  memset (&pi, 0, sizeof (pi));
 	  goto cleanup;
@@ -399,7 +448,9 @@ frok::parent (volatile char * volatile stack_here)
       goto cleanup;
     }
 
-  child->nice = myself->nice;
+  child->nice = child_nice;
+  child->sched_policy = child_sched_policy;
+  child->sched_reset_on_fork = false;
 
   /* Initialize things that are done later in dll_crt0_1 that aren't done
      for the forkee.  */
@@ -449,6 +500,7 @@ frok::parent (volatile char * volatile stack_here)
 		   impure, impure_beg, impure_end,
 		   NULL);
 
+  cygheap->unlock ();
   __malloc_unlock ();
   locked = false;
   if (!rc)
@@ -534,7 +586,10 @@ cleanup:
   if (fix_impersonation)
     cygheap->user.reimpersonate ();
   if (locked)
-    __malloc_unlock ();
+    {
+      cygheap->unlock ();
+      __malloc_unlock ();
+    }
 
   /* Remember to de-allocate the fd table. */
   if (hchild)
@@ -553,15 +608,33 @@ extern "C" int
 fork ()
 {
   bool with_forkables = false; /* do not force hardlinks on first try */
-  int res = dofork (NULL, &with_forkables);
+  int res = dofork (NULL, false, &with_forkables);
   if (res >= 0)
     return res;
   if (with_forkables)
     return res; /* no need for second try when already enabled */
   with_forkables = true; /* enable hardlinks for second try */
-  return dofork (NULL, &with_forkables);
+  return dofork (NULL, false, &with_forkables);
 }
 
+/* POSIX.1-2024:
+
+    The _Fork() function shall be equivalent to fork(), except that fork
+    handlers established by means of the pthread_atfork() function shall
+    not be called and _Fork() shall be async-signal-safe.  Our fork()
+    already is async-signal-safe. */
+extern "C" int
+_Fork ()
+{
+  bool with_forkables = false; /* do not force hardlinks on first try */
+  int res = dofork (NULL, true, &with_forkables);
+  if (res >= 0)
+    return res;
+  if (with_forkables)
+    return res; /* no need for second try when already enabled */
+  with_forkables = true; /* enable hardlinks for second try */
+  return dofork (NULL, true, &with_forkables);
+}
 
 /* __posix_spawn_fork is called from newlib's posix_spawn implementation.
    The original code in newlib has been taken from FreeBSD, and the core
@@ -572,17 +645,17 @@ extern "C" int
 __posix_spawn_fork (void **proc)
 {
   bool with_forkables = false; /* do not force hardlinks on first try */
-  int res = dofork (proc, &with_forkables);
+  int res = dofork (proc, false, &with_forkables);
   if (res >= 0)
     return res;
   if (with_forkables)
     return res; /* no need for second try when already enabled */
   with_forkables = true; /* enable hardlinks for second try */
-  return dofork (proc, &with_forkables);
+  return dofork (proc, false, &with_forkables);
 }
 
 static int
-dofork (void **proc, bool *with_forkables)
+dofork (void **proc, bool do_atfork_handlers, bool *with_forkables)
 {
   frok grouped (with_forkables);
 
@@ -603,7 +676,7 @@ dofork (void **proc, bool *with_forkables)
     }
 
   {
-    hold_everything held_everything (ischild);
+    hold_everything held_everything (ischild, do_atfork_handlers);
     /* This tmp_pathbuf constructor is required here because the below setjmp
        magic will otherwise not restore the original buffer count values in
        the thread-local storage.  A process forking too deeply will run into
@@ -626,10 +699,12 @@ dofork (void **proc, bool *with_forkables)
     ischild = !!setjmp (grouped.ch.jmp);
 
     volatile char * volatile stackp;
-#ifdef __x86_64__
+#if defined(__x86_64__)
     __asm__ volatile ("movq %%rsp,%0": "=r" (stackp));
+#elif defined(__aarch64__)
+    __asm__ volatile ("mov %0, sp" : "=r" (stackp));
 #else
-    __asm__ volatile ("movl %%esp,%0": "=r" (stackp));
+#error unimplemented for this target
 #endif
 
     if (!ischild)
@@ -637,15 +712,21 @@ dofork (void **proc, bool *with_forkables)
     else
       {
 	res = grouped.child (stackp);
-	in_forkee = false;
+	/* So far pthread::atforkchild() was called as last function
+	   from inside frok::child().  Move the call here, so we don't have
+	   to propagate the do_atfork_handlers variable to frok::child(). */
+	if (!do_atfork_handlers)
+	  pthread::atforkchild ();
+	__in_forkee = FORKED;
 	ischild = true;	/* might have been reset by fork mem copy */
       }
   }
 
   if (ischild)
     {
-      myself->process_state |= PID_ACTIVE;
-      myself->process_state &= ~(PID_INITIALIZING | PID_EXITED | PID_REAPED);
+      InterlockedOr ((LONG *) &myself->process_state, PID_ACTIVE);
+      InterlockedAnd ((LONG *) &myself->process_state,
+		      ~(PID_INITIALIZING | PID_EXITED | PID_REAPED));
     }
   else if (res < 0)
     {

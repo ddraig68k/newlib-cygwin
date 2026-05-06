@@ -218,25 +218,15 @@ getpw_cp (struct passwd *temppw)
 }
 
 extern "C" struct passwd *
-getpwuid32 (uid_t uid)
+getpwuid (uid_t uid)
 {
   struct passwd *temppw = internal_getpwuid (uid);
   pthread_testcancel ();
   return getpw_cp (temppw);
 }
 
-#ifdef __i386__
-extern "C" struct passwd *
-getpwuid (__uid16_t uid)
-{
-  return getpwuid32 (uid16touid32 (uid));
-}
-#else
-EXPORT_ALIAS (getpwuid32, getpwuid)
-#endif
-
 extern "C" int
-getpwuid_r32 (uid_t uid, struct passwd *pwd, char *buffer, size_t bufsize, struct passwd **result)
+getpwuid_r (uid_t uid, struct passwd *pwd, char *buffer, size_t bufsize, struct passwd **result)
 {
   *result = NULL;
 
@@ -267,16 +257,6 @@ getpwuid_r32 (uid_t uid, struct passwd *pwd, char *buffer, size_t bufsize, struc
   pwd->pw_comment = NULL;
   return 0;
 }
-
-#ifdef __x86_64__
-EXPORT_ALIAS (getpwuid_r32, getpwuid_r)
-#else
-extern "C" int
-getpwuid_r (__uid16_t uid, struct passwd *pwd, char *buffer, size_t bufsize, struct passwd **result)
-{
-  return getpwuid_r32 (uid16touid32 (uid), pwd, buffer, bufsize, result);
-}
-#endif
 
 extern "C" struct passwd *
 getpwnam (const char *name)
@@ -405,7 +385,10 @@ pg_ent::getent (void)
     case from_local:
       if (from_db
 	  && nss_db_enum_local ()
-	  && (!cygheap->dom.member_machine ()
+	  /* Domain controller?  If so, sam and ad are one and the same
+	     and "local ad" would list all domain accounts twice without
+	     this test. */
+	  && (cygheap->dom.account_flat_name ()[0] != L'@'
 	      || !nss_db_enum_primary ())
 	  && (entry = enumerate_local ()))
 	return entry;
@@ -644,7 +627,7 @@ pg_ent::enumerate_ad ()
 	    full.acc_type = SidTypeAlias;
 	  else
 	    full.acc_type = group ? SidTypeGroup : SidTypeUser;
-	  char *line = pg.fetch_account_from_windows (arg, &cldap);
+	  char *line = pg.fetch_account_from_windows (arg, false, &cldap);
 	  if (line)
 	    return pg.add_account_post_fetch (line, false);
 	  ret = EIO;
@@ -753,14 +736,6 @@ endpwent_filtered (void *pw)
 {
   ((pw_ent *) pw)->endpwent ();
 }
-
-#ifdef __i386__
-extern "C" struct passwd *
-getpwduid (__uid16_t)
-{
-  return NULL;
-}
-#endif
 
 extern "C" int
 setpassent (int)

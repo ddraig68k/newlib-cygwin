@@ -14,21 +14,26 @@ details. */
    unnecessarily.  */
 #define WEAK __attribute__ ((weak))
 
-#ifdef __x86_64__
 #define REAL_ZNWX		"__real__Znwm"
 #define REAL_ZNAX		"__real__Znam"
 #define REAL_ZNWX_NOTHROW_T	"__real__ZnwmRKSt9nothrow_t"
 #define REAL_ZNAX_NOTHROW_T	"__real__ZnamRKSt9nothrow_t"
-#else
-#define REAL_ZNWX		"___real__Znwj"
-#define REAL_ZNAX		"___real__Znaj"
-#define REAL_ZNWX_NOTHROW_T	"___real__ZnwjRKSt9nothrow_t"
-#define REAL_ZNAX_NOTHROW_T	"___real__ZnajRKSt9nothrow_t"
-#endif
 #define REAL_ZDLPV		_SYMSTR (__real__ZdlPv)
 #define REAL_ZDAPV		_SYMSTR (__real__ZdaPv)
 #define REAL_ZDLPV_NOTHROW_T	_SYMSTR (__real__ZdlPvRKSt9nothrow_t)
 #define REAL_ZDAPV_NOTHROW_T	_SYMSTR (__real__ZdaPvRKSt9nothrow_t)
+#define REAL_ZDLPVM		_SYMSTR (__real__ZdlPvm)
+#define REAL_ZDAPVM		_SYMSTR (__real__ZdaPvm)
+#define REAL_ZNWX_ALIGN_VAL_T	"__real__ZnwmSt11align_val_t"
+#define REAL_ZNAX_ALIGN_VAL_T	"__real__ZnamSt11align_val_t"
+#define REAL_ZDLPV_ALIGN_VAL_T	_SYMSTR (__real__ZdlPvSt11align_val_t)
+#define REAL_ZDAPV_ALIGN_VAL_T	_SYMSTR (__real__ZdaPvSt11align_val_t)
+#define REAL_ZDLPVM_ALIGN_VAL_T	_SYMSTR (__real__ZdlPvmSt11align_val_t)
+#define REAL_ZDAPVM_ALIGN_VAL_T	_SYMSTR (__real__ZdaPvmSt11align_val_t)
+#define REAL_ZNWX_ALIGN_VAL_T_NOTHROW_T	"__real__ZnwmSt11align_val_tRKSt9nothrow_t"
+#define REAL_ZNAX_ALIGN_VAL_T_NOTHROW_T	"__real__ZnamSt11align_val_tRKSt9nothrow_t"
+#define REAL_ZDLPV_ALIGN_VAL_T_NOTHROW_T	_SYMSTR (__real__ZdlPvSt11align_val_tRKSt9nothrow_t)
+#define REAL_ZDAPV_ALIGN_VAL_T_NOTHROW_T	_SYMSTR (__real__ZdaPvSt11align_val_tRKSt9nothrow_t)
 
 /* Use asm names to bypass the --wrap that is being applied to redirect all other
    references to these operators toward the redirectors in the Cygwin DLL; this
@@ -50,6 +55,30 @@ extern WEAK void operator delete(void *p, const std::nothrow_t &nt) noexcept (tr
 			__asm__ (REAL_ZDLPV_NOTHROW_T);
 extern WEAK void operator delete[](void *p, const std::nothrow_t &nt) noexcept (true)
 			__asm__ (REAL_ZDAPV_NOTHROW_T);
+extern WEAK void operator delete(void *p, std::size_t sz) noexcept (true)
+			__asm__ (REAL_ZDLPVM);
+extern WEAK void operator delete[](void *p, std::size_t sz) noexcept (true)
+			__asm__ (REAL_ZDAPVM);
+extern WEAK void *operator new(std::size_t sz, std::align_val_t al) noexcept (false)
+			__asm__ (REAL_ZNWX_ALIGN_VAL_T);
+extern WEAK void *operator new[](std::size_t sz, std::align_val_t al) noexcept (false)
+			__asm__ (REAL_ZNAX_ALIGN_VAL_T);
+extern WEAK void operator delete(void *p, std::align_val_t al) noexcept (true)
+			__asm__ (REAL_ZDLPV_ALIGN_VAL_T);
+extern WEAK void operator delete[](void *p, std::align_val_t al) noexcept (true)
+			__asm__ (REAL_ZDAPV_ALIGN_VAL_T);
+extern WEAK void operator delete(void *p, std::size_t sz, std::align_val_t al) noexcept (true)
+			__asm__ (REAL_ZDLPVM_ALIGN_VAL_T);
+extern WEAK void operator delete[](void *p, std::size_t sz, std::align_val_t al) noexcept (true)
+			__asm__ (REAL_ZDAPVM_ALIGN_VAL_T);
+extern WEAK void *operator new(std::size_t sz, std::align_val_t al, const std::nothrow_t &nt) noexcept (true)
+			__asm__ (REAL_ZNWX_ALIGN_VAL_T_NOTHROW_T);
+extern WEAK void *operator new[](std::size_t sz, std::align_val_t al, const std::nothrow_t &nt) noexcept (true)
+			__asm__ (REAL_ZNAX_ALIGN_VAL_T_NOTHROW_T);
+extern WEAK void operator delete(void *p, std::align_val_t al, const std::nothrow_t &nt) noexcept (true)
+			__asm__ (REAL_ZDLPV_ALIGN_VAL_T_NOTHROW_T);
+extern WEAK void operator delete[](void *p, std::align_val_t al, const std::nothrow_t &nt) noexcept (true)
+			__asm__ (REAL_ZDAPV_ALIGN_VAL_T_NOTHROW_T);
 
 /* Avoid an info message from linker when linking applications.  */
 extern __declspec(dllimport) struct _reent *_impure_ptr;
@@ -61,24 +90,28 @@ extern int __dynamically_loaded;
 
 extern "C"
 {
-#ifdef __i386__
-char **environ;
-#endif
 int _fmode;
 
 extern char __RUNTIME_PSEUDO_RELOC_LIST__;
 extern char __RUNTIME_PSEUDO_RELOC_LIST_END__;
-#ifdef __x86_64__
 extern char __image_base__;
 #define _image_base__ __image_base__
-#else
-extern char _image_base__;
-#endif
 
 struct per_process_cxx_malloc __cygwin_cxx_malloc =
 {
   &(operator new), &(operator new[]),
   &(operator delete), &(operator delete[]),
+  /* nothrow new/delete */
+  &(operator new), &(operator new[]),
+  &(operator delete), &(operator delete[]),
+  /* C++14 sized delete */
+  &(operator delete), &(operator delete[]),
+  /* C++17 aligned new/delete */
+  &(operator new), &(operator new[]),
+  &(operator delete), &(operator delete[]),
+  /* aligned + sized delete */
+  &(operator delete), &(operator delete[]),
+  /* aligned + nothrow new/delete */
   &(operator new), &(operator new[]),
   &(operator delete), &(operator delete[])
 };
@@ -86,11 +119,13 @@ struct per_process_cxx_malloc __cygwin_cxx_malloc =
 /* Set up pointers to various pieces so the dll can then use them,
    and then jump to the dll.  */
 
-int __stdcall
+int
 _cygwin_crt0_common (MainFunc f, per_process *u)
 {
   per_process *newu = (per_process *) cygwin_internal (CW_USER_DATA);
   bool uwasnull;
+  bool new_dll_with_additional_operators =
+       CYGWIN_VERSION_CHECK_FOR_CXX17_OVERLOADS (newu);
 
   /* u is non-NULL if we are in a DLL, and NULL in the main exe.
      newu is the Cygwin DLL's internal per_process and never NULL.  */
@@ -114,9 +149,6 @@ _cygwin_crt0_common (MainFunc f, per_process *u)
 
   u->ctors = &__CTOR_LIST__;
   u->dtors = &__DTOR_LIST__;
-#ifdef __i386__
-  u->envptr = &environ;
-#endif
   if (uwasnull)
     _impure_ptr = u->impure_ptr;	/* Use field initialized in newer DLLs. */
   else
@@ -146,12 +178,13 @@ _cygwin_crt0_common (MainFunc f, per_process *u)
   /* Likewise for the C++ memory operators, if any, but not if we
      were dlopen()'d, as we might get dlclose()'d and that would
      leave stale function pointers behind.    */
-  if (newu && newu->cxx_malloc && !__dynamically_loaded)
+  if (!__dynamically_loaded)
     {
       /* Inherit what we don't override.  */
 #define CONDITIONALLY_OVERRIDE(MEMBER) \
-      if (!__cygwin_cxx_malloc.MEMBER) \
-	__cygwin_cxx_malloc.MEMBER = newu->cxx_malloc->MEMBER;
+      if (__cygwin_cxx_malloc.MEMBER) \
+	newu->cxx_malloc->MEMBER = __cygwin_cxx_malloc.MEMBER;
+
       CONDITIONALLY_OVERRIDE(oper_new);
       CONDITIONALLY_OVERRIDE(oper_new__);
       CONDITIONALLY_OVERRIDE(oper_delete);
@@ -160,30 +193,39 @@ _cygwin_crt0_common (MainFunc f, per_process *u)
       CONDITIONALLY_OVERRIDE(oper_new___nt);
       CONDITIONALLY_OVERRIDE(oper_delete_nt);
       CONDITIONALLY_OVERRIDE(oper_delete___nt);
-      /* Now update the resulting set into the global redirectors.  */
-      *newu->cxx_malloc = __cygwin_cxx_malloc;
+      if (new_dll_with_additional_operators)
+	{
+	  CONDITIONALLY_OVERRIDE(oper_delete_sz);
+	  CONDITIONALLY_OVERRIDE(oper_delete___sz);
+	  CONDITIONALLY_OVERRIDE(oper_new_al);
+	  CONDITIONALLY_OVERRIDE(oper_new___al);
+	  CONDITIONALLY_OVERRIDE(oper_delete_al);
+	  CONDITIONALLY_OVERRIDE(oper_delete___al);
+	  CONDITIONALLY_OVERRIDE(oper_delete_sz_al);
+	  CONDITIONALLY_OVERRIDE(oper_delete___sz_al);
+	  CONDITIONALLY_OVERRIDE(oper_new_al_nt);
+	  CONDITIONALLY_OVERRIDE(oper_new___al_nt);
+	  CONDITIONALLY_OVERRIDE(oper_delete_al_nt);
+	  CONDITIONALLY_OVERRIDE(oper_delete___al_nt);
+	}
     }
 
   /* Setup the module handle so fork can get the path name.  */
   u->hmodule = GetModuleHandle (0);
 
   /* variables for fork */
-#ifdef __x86_64__
   u->data_start = &__data_start__;
   u->data_end = &__data_end__;
   u->bss_start = &__bss_start__;
   u->bss_end = &__bss_end__;
-#else
-  u->data_start = &_data_start__;
-  u->data_end = &_data_end__;
-  u->bss_start = &_bss_start__;
-  u->bss_end = &_bss_end__;
-#endif
   u->pseudo_reloc_start = &__RUNTIME_PSEUDO_RELOC_LIST__;
   u->pseudo_reloc_end = &__RUNTIME_PSEUDO_RELOC_LIST_END__;
   u->image_base = &_image_base__;
   /* This is actually a dummy call to force the linker to load this
-     symbol for older apps which need it.  */
+     symbol for older apps which need it. Unfortunately, ld for x86_64
+     still emits this symbol when linking against static libs which
+     require pseudo relocation, so we can't drop this call and the
+     dummy function just yet. */
   _pei386_runtime_relocator (NULL);
   return 1;
 }

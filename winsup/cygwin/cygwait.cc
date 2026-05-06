@@ -58,16 +58,20 @@ cygwait (HANDLE object, PLARGE_INTEGER timeout, unsigned mask)
     }
 
   DWORD timeout_n;
+  HANDLE local_timer = NULL;
+  HANDLE &wait_timer =
+    _my_tls.locals.cw_timer_inuse ? local_timer : _my_tls.locals.cw_timer;
   if (!timeout)
     timeout_n = WAIT_TIMEOUT + 1;
   else
     {
+      if (!_my_tls.locals.cw_timer_inuse)
+	_my_tls.locals.cw_timer_inuse = true;
       timeout_n = WAIT_OBJECT_0 + num++;
-      if (!_my_tls.locals.cw_timer)
-	NtCreateTimer (&_my_tls.locals.cw_timer, TIMER_ALL_ACCESS, NULL,
-		       NotificationTimer);
-      NtSetTimer (_my_tls.locals.cw_timer, timeout, NULL, NULL, FALSE, 0, NULL);
-      wait_objects[timeout_n] = _my_tls.locals.cw_timer;
+      if (!wait_timer)
+	NtCreateTimer (&wait_timer, TIMER_ALL_ACCESS, NULL, NotificationTimer);
+      NtSetTimer (wait_timer, timeout, NULL, NULL, FALSE, 0, NULL);
+      wait_objects[timeout_n] = wait_timer;
     }
 
   while (1)
@@ -82,9 +86,9 @@ cygwait (HANDLE object, PLARGE_INTEGER timeout, unsigned mask)
 	/* all set */;
       else
 	{
-	  int sig = _my_tls.sig;
+	  int sig = _my_tls.current_sig;
 	  if (is_cw_sig_cont && sig == SIGCONT)
-	    _my_tls.sig = 0;
+	    _my_tls.current_sig = 0;
 	  if (!sig)
 	    continue;
 	  if (is_cw_sig_eintr || (is_cw_sig_cont && sig == SIGCONT))
@@ -100,13 +104,19 @@ cygwait (HANDLE object, PLARGE_INTEGER timeout, unsigned mask)
     {
       TIMER_BASIC_INFORMATION tbi;
 
-      NtQueryTimer (_my_tls.locals.cw_timer, TimerBasicInformation, &tbi,
+      NtQueryTimer (wait_timer, TimerBasicInformation, &tbi,
 		    sizeof tbi, NULL);
       /* if timer expired, TimeRemaining is negative and represents the
 	  system uptime when signalled */
-      if (timeout->QuadPart < 0LL)
-	timeout->QuadPart = tbi.SignalState ? 0LL : tbi.TimeRemaining.QuadPart;
-      NtCancelTimer (_my_tls.locals.cw_timer, NULL);
+      if (timeout->QuadPart < 0LL) {
+	timeout->QuadPart = tbi.SignalState || tbi.TimeRemaining.QuadPart < 0LL
+                            ? 0LL : tbi.TimeRemaining.QuadPart;
+      }
+      NtCancelTimer (wait_timer, NULL);
+      if (local_timer)
+	NtClose(local_timer);
+      else
+	_my_tls.locals.cw_timer_inuse = false;
     }
 
   if (res == WAIT_CANCELED && is_cw_cancel_self)

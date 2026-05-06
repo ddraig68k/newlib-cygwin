@@ -26,7 +26,7 @@
 	dmg@research.att.com or research!dmg
  */
 
-#include <ieeefp.h>
+#include <machine/ieeefp.h>
 #include <math.h>
 #include <float.h>
 #include <errno.h>
@@ -384,6 +384,8 @@ double		_strtod_l (struct _reent *ptr, const char *__restrict s00,
 			   char **__restrict se, locale_t loc);
 #if defined (_HAVE_LONG_DOUBLE) && !defined (_LDBL_EQ_DBL)
 int		_strtorx_l (struct _reent *, const char *, char **, int,
+			    void *, locale_t);
+int		_strtorQ_l (struct _reent *, const char *, char **, int,
 			    void *, locale_t);
 int		_strtodg_l (struct _reent *p, const char *s00, char **se,
 			    struct FPI *fpi, Long *exp, __ULong *bits,

@@ -43,7 +43,10 @@ using std::string;
 cygwin::padding *cygwin::padding::_main = NULL;
 DWORD cygwin::padding::_mainTID = 0;
 
-// A few cygwin constants.
+// Cygwin signal constants
+#undef SIGINT
+#undef SIGTERM
+
 static const int SIGHUP = 1;
 static const int SIGINT = 2;
 static const int SIGTERM = 15;  // Cygwin won't deliver this one to us;
@@ -68,17 +71,37 @@ cygwin::padding::padding ()
 
   _end = _padding + sizeof (_padding);
   char *stackbase;
-#ifdef __GNUC__
+#ifdef __GNUC__ /* GCC */
+# ifdef __x86_64__
+    __asm__ (
+    "mov %%gs:8, %0"
+    :"=r"(stackbase)
+    );
+# elif __X86__
   __asm__ (
     "movl %%fs:4, %0"
     :"=r"(stackbase)
     );
-#else
+# elif __aarch64__
+  // x18 register points to TEB. See _TEB structure definition in
+  // winsup\cygwin\local_includes\ntdll.h
+  __asm__ volatile (
+    "ldr %0, [x18, #0x8]"
+   :"=r" (stackbase)
+   );
+# else
+#  error Unknown architecture
+# endif
+#else /* !GCC assumed to be MSVC */
+# ifdef __X86__
   __asm
       {
         mov eax, fs:[4];
         mov stackbase, eax;
       }
+#else
+#  error Unknown architecture
+# endif
 #endif
   _stackbase = stackbase;
 
@@ -152,8 +175,6 @@ cygwin::connector::connector (const char *dll)
   // Pick up the function pointers for the basic infrastructure.
   get_symbol ("__errno", _errno);
   get_symbol ("strerror", _strerror);
-  get_symbol ("cygwin_conv_to_full_posix_path", _conv_to_full_posix_path);
-  get_symbol ("cygwin_conv_to_full_win32_path", _conv_to_full_win32_path);
 
   // Note that you need to be running an interruptible cygwin function if
   // you want to receive signals.  You can use the standard signal()
@@ -583,12 +604,9 @@ main (int argc, char *argv[])
     }
 
     // And signal handling:
-    std::pointer_to_unary_function < int , void > h1 (&hangup);
-    std::pointer_to_unary_function < int , void > h2 (&interrupt);
-    std::pointer_to_unary_function < int , void > h3 (&catch_signal);
-    cygwin.set_handler (SIGHUP, &h1);
-    cygwin.set_handler (SIGINT, &h2);
-    cygwin.set_handler (SIGUSR1, &h3);
+    cygwin.set_handler (SIGHUP, hangup);
+    cygwin.set_handler (SIGINT, interrupt);
+    cygwin.set_handler (SIGUSR1, catch_signal);
 
     // Make sure the signal handler thread has had time to start...
     Sleep (100);

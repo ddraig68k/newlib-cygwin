@@ -58,7 +58,7 @@ dtable_init ()
     cygheap->fdtab.extend (NOFILE_INCR, 0);
 }
 
-void __stdcall
+void
 set_std_handle (int fd)
 {
   fhandler_base *fh = cygheap->fdtab[fd];
@@ -323,14 +323,10 @@ dtable::init_std_file_from_handle (int fd, HANDLE handle)
 	   || GetNumberOfConsoleInputEvents (handle, (DWORD *) &buf))
     {
       /* Console I/O */
-      if (myself->ctty > 0)
+      if (CTTY_IS_VALID (myself->ctty))
 	dev.parse (myself->ctty);
       else
-	{
-	  dev.parse (FH_CONSOLE);
-	  CloseHandle (handle);
-	  handle = INVALID_HANDLE_VALUE;
-	}
+	dev.parse (FH_CONSOLE);
     }
   else if (GetCommState (handle, &dcb))
     /* FIXME: Not right - assumes ttyS0 */
@@ -406,13 +402,22 @@ dtable::init_std_file_from_handle (int fd, HANDLE handle)
 	}
       if (!fh->init (handle, access, bin))
 	api_fatal ("couldn't initialize fd %d for %s", fd, fh->get_name ());
+      if (fh->ispipe ())
+	{
+	  fhandler_pipe *fhp = (fhandler_pipe *) fh;
+	  fhp->set_pipe_buf_size ();
+	  /* Set pipe always blocking */
+	  fhp->set_pipe_non_blocking (false);
+	}
 
-      fh->open_setup (openflags);
+      if (!fh->open_setup (openflags))
+	api_fatal ("open_setup failed, %E");
       fh->usecount = 0;
       cygheap->fdtab[fd] = fh;
       cygheap->fdtab[fd]->inc_refcnt ();
       set_std_handle (fd);
       paranoid_printf ("fd %d, handle %p", fd, handle);
+      fh->post_open_setup (fd);
     }
 }
 
@@ -499,7 +504,7 @@ fh_alloc (path_conv& pc)
 	  break;
 	case FH_PTMX:
 	  if (pc.isopen ())
-	    fh = cnew (fhandler_pty_master, -1);
+	    fh = cnew (fhandler_pty_master, -1, (dev_t) pc.dev);
 	  else
 	    fhraw = cnew_no_ctor (fhandler_pty_master, -1);
 	  break;
@@ -542,6 +547,9 @@ fh_alloc (path_conv& pc)
 	case FH_CLIPBOARD:
 	  fh = cnew (fhandler_dev_clipboard);
 	  break;
+	case FH_OSS_MIXER:
+	  fh = cnew (fhandler_dev_mixer);
+	  break;
 	case FH_OSS_DSP:
 	  fh = cnew (fhandler_dev_dsp);
 	  break;
@@ -572,6 +580,12 @@ fh_alloc (path_conv& pc)
 	case FH_DEV:
 	  fh = cnew (fhandler_dev);
 	  break;
+	case FH_DEV_DISK:
+	  fh = cnew (fhandler_dev_disk);
+	  break;
+	case FH_DEV_FD:
+	  fh = cnew (fhandler_dev_fd);
+	  break;
 	case FH_CYGDRIVE:
 	  fh = cnew (fhandler_cygdrive);
 	  break;
@@ -581,22 +595,32 @@ fh_alloc (path_conv& pc)
 	case FH_TIMERFD:
 	  fh = cnew (fhandler_timerfd);
 	  break;
+	case FH_MQUEUE:
+	  fh = cnew (fhandler_mqueue);
+	  break;
 	case FH_TTY:
 	  if (!pc.isopen ())
 	    {
-	      fhraw = cnew_no_ctor (fhandler_console, -1);
+	      if (CTTY_IS_VALID (myself->ctty))
+		{
+		  if (iscons_dev (myself->ctty))
+		    fhraw = cnew_no_ctor (fhandler_console, -1);
+		  else
+		    fhraw = cnew_no_ctor (fhandler_pty_slave, -1);
+		}
 	      debug_printf ("not called from open for /dev/tty");
 	    }
-	  else if (myself->ctty <= 0 && last_tty_dev
+	  else if (!CTTY_IS_VALID (myself->ctty) && last_tty_dev
 		   && !myself->set_ctty (fh_last_tty_dev, 0))
 	    debug_printf ("no /dev/tty assigned");
-	  else if (myself->ctty > 0)
+	  else if (CTTY_IS_VALID (myself->ctty))
 	    {
 	      debug_printf ("determining /dev/tty assignment for ctty %p", myself->ctty);
 	      if (iscons_dev (myself->ctty))
 		fh = cnew (fhandler_console, pc.dev);
 	      else
-		fh = cnew (fhandler_pty_slave, myself->ctty);
+		fh = cnew (fhandler_pty_slave,
+			   minor (myself->ctty), (dev_t) pc.dev);
 	      if (fh->dev () != FH_NADA)
 		fh->set_name ("/dev/tty");
 	    }
@@ -666,7 +690,7 @@ build_fh_pc (path_conv& pc)
 
   /* Keep track of the last tty-like thing opened.  We could potentially want
      to open it if /dev/tty is referenced. */
-  if (myself->ctty > 0 || !fh->is_tty () || !pc.isctty_capable ())
+  if (CTTY_IS_VALID (myself->ctty) || !fh->is_tty () || !pc.isctty_capable ())
     last_tty_dev = FH_NADA;
   else
     last_tty_dev = fh->dev ();
@@ -747,13 +771,6 @@ dtable::dup3 (int oldfd, int newfd, int flags)
       set_errno (EINVAL);
       return -1;
     }
-
-  /* This is a temporary kludge until all utilities can catch up with
-     a change in behavior that implements linux functionality:  opening
-     a tty should not automatically cause it to become the controlling
-     tty for the process.  */
-  if (newfd > 2)
-    flags |= O_NOCTTY;
 
   if ((newfh = dup_worker (fds[oldfd], flags)) == NULL)
     {
@@ -897,6 +914,8 @@ dtable::fixup_after_exec ()
 	else if (i <= 2)
 	  SetStdHandle (std_consts[i], fh->get_output_handle ());
       }
+  if (cygheap->ctty)
+    cygheap->ctty->fixup_after_exec ();
 }
 
 void
@@ -923,6 +942,9 @@ dtable::fixup_after_fork (HANDLE parent)
 	else if (i <= 2)
 	  SetStdHandle (std_consts[i], fh->get_output_handle ());
       }
+
+  if (cygheap->ctty)
+    cygheap->ctty->fixup_after_fork (parent);
 }
 
 static void

@@ -142,7 +142,7 @@
 #include "usctest.h"
 #include "search_path.h"
 
-void setup();
+void setup(char *path);
 void cleanup(void) __attribute__((noreturn));
 void help();
 
@@ -170,7 +170,7 @@ const char *File1 = DEFAULT_FILE;
 
 #define DEFAULT_SUBPROG "test_open"
 const char *openck = DEFAULT_SUBPROG;	/* support program name to check for open FD */
-const char subprog_path[_POSIX_PATH_MAX];/* path to exec "openck" with */
+char subprog_path[_POSIX_PATH_MAX];/* path to exec "openck" with */
 #define STRSIZE 255
 #define FIFONAME "FiFo"
 

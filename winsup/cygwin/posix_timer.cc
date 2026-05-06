@@ -228,7 +228,7 @@ out:
   return 0;
 }
 
-static DWORD WINAPI
+static DWORD
 timer_thread (VOID *x)
 {
   timer_tracker *tt = ((timer_tracker *) x);
@@ -349,15 +349,27 @@ timer_tracker::settime (int flags, const itimerspec *new_value,
 		 / (NSPERSEC / NS100PERSEC);
 	  if (flags & TIMER_ABSTIME)
 	    {
-	      if (clock_id == CLOCK_REALTIME)
-		DueTime.QuadPart = ts + FACTOR;
-	      else /* non-REALTIME clocks require relative DueTime. */
+	      switch (clock_id)
 		{
+		case CLOCK_REALTIME_COARSE:
+		case CLOCK_REALTIME:
+		case CLOCK_REALTIME_ALARM:
+		case CLOCK_TAI:
+		  DueTime.QuadPart = ts + FACTOR;
+		  /* TAI time is realtime + leap secs.  NT timers are on
+		     realtime.  Subtract leap secs to get the corresponding
+		     real due time.  Leap secs are always 0 unless CLOCK_TAI. */
+		  DueTime.QuadPart -= get_clock (clock_id)->get_leap_secs ()
+				      * NS100PERSEC;
+		  break;
+		default:
+		  /* non-REALTIME clocks require relative DueTime. */
 		  DueTime.QuadPart = get_clock_now () - ts;
 		  /* If the timestamp was earlier than now, compute number
 		     of expirations and offset DueTime to expire immediately. */
 		  if (DueTime.QuadPart >= 0)
 		    DueTime.QuadPart = -1LL;
+		  break;
 		}
 	    }
 	  else
@@ -404,7 +416,7 @@ timer_tracker::settime (int flags, const itimerspec *new_value,
    leaking of timer ids into the child process. */
 #define cnew(name, ...) \
   ({ \
-    void* ptr = (void*) HeapAlloc (GetProcessHeap (), 0, sizeof (name)); \
+    void *ptr = (void *) HeapAlloc (GetProcessHeap (), 0, sizeof (name)); \
     ptr ? new (ptr) name (__VA_ARGS__) : NULL; \
   })
 
@@ -530,6 +542,7 @@ timer_delete (timer_t timerid)
 	  __leave;
 	}
       delete in_tt;
+      ret = 0;
     }
   __except (EFAULT) {}
   __endtry

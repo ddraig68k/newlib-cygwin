@@ -16,12 +16,14 @@ if test -z "$newlib_headers"; then
 fi
 newlib_headers="$target_builddir/newlib/targ-include $newlib_headers"
 
-INCLUDES="-I${winsup_srcdir}/cygwin -I${target_builddir}/winsup/cygwin"
-INCLUDES="${INCLUDES} -isystem ${cygwin_headers}"
+AM_CPPFLAGS="-U_FORTIFY_SOURCE"
+AM_CPPFLAGS="${AM_CPPFLAGS} -I${winsup_srcdir}/cygwin/local_includes"
+AM_CPPFLAGS="${AM_CPPFLAGS} -I${target_builddir}/winsup/cygwin"
+AM_CPPFLAGS="${AM_CPPFLAGS} -isystem ${cygwin_headers}"
 for h in ${newlib_headers}; do
-    INCLUDES="${INCLUDES} -isystem $h"
+    AM_CPPFLAGS="${AM_CPPFLAGS} -isystem $h"
 done
-AC_SUBST(INCLUDES)
+AC_SUBST(AM_CPPFLAGS)
 ])
 
 AC_SUBST(target_builddir)

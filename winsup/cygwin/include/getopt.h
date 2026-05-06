@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#ifdef _COMPILING_NEWLIB
+#ifdef _LIBC
 #include_next "getopt.h"
 #else
 #ifndef __GETOPT_H__
@@ -85,4 +85,4 @@ int getopt_long_only (int, char *const *, const char *, const struct option *, i
 
 #endif /* __GETOPT_LONG_H__ */
 #endif /* __UNISTD_GETOPT__ */
-#endif /*_INSIDE_NEWLIB*/
+#endif /*_LIBC */

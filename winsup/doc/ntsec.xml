@@ -687,7 +687,7 @@ startup, you may wish to consider starting
 <command><link linkend="using-cygserver">cygserver</link></command> first in
 order to take advantage of this system-wide caching.  To assure that
 <command><link linkend="using-cygserver">cygserver</link></command> has started
-prior to starting <command>sshd</command> or other Cygwin processes, you may
+prior to starting <command>cygsshd</command> or other Cygwin services, you may
 wish to create service startup dependencies.
 <command><link linkend="using-cygserver">Cygserver</link></command> should
 probably wait for Windows TCPIP and AFD services before it starts, and then
@@ -707,7 +707,7 @@ shown below.  You will need an administrative prompt to run the
   # Delay sshd until after Cygserver has started
   # Again note the (odd) required space character after "depend="
 
-  sc config sshd depend= cygserver
+  sc config cygsshd depend= cygserver
 
   # View the Cygserver service details
 
@@ -870,9 +870,6 @@ set up to all default values:
   # /etc/nsswitch.conf
   passwd: files db
   group:  files db
-<!--
-  db_prefix:    auto
-  db_separator: + -->
   db_enum:  cache builtin
   db_home:  /home/%U
   db_shell: /bin/bash
@@ -990,159 +987,6 @@ and <literal>group</literal> information from the database.
 </para>
 
 </sect4>
-
-<!--
-
-  DESCRIPTION OF db_prefix AND db_separator
-
-  Keep in for reference
-
-
-<itemizedlist spacing="compact">
-
-<listitem>
-<para>
-<literal>db_prefix:</literal> determines how the Cygwin user or group name
-is created.  The recognized values are:
-</para>
-
-<variablelist>
-  <varlistentry>
-    <term><literal>auto</literal></term>
-    <listitem>
-      <para>
-      This is the default.  If your account is from the primary domain of your
-      machine, or if your machine is a standalone machine (not a domain member),
-      your Cygwin account name is just the Windows account name.
-      </para>
-
-      <para>
-      If your account is from another domain, or if you're logged in as
-      local user on a domain machine, the Cygwin username will be the
-      combination of Windows domainname and username, with the separator
-      char in between:
-      </para>
-
-      <segmentedlist><?dbhtml list-presentation="table"?>
-	<seglistitem>
-	  <seg><literal>MY_DOM+username</literal></seg>
-	  <seg>(foreign domain)</seg>
-	</seglistitem>
-	<seglistitem>
-	  <seg><literal>MACHINE+username</literal></seg>
-	  <seg>(local account)</seg>
-	</seglistitem>
-      </segmentedlist>
-
-      <para>
-      Builtin accounts are simply used as is:
-      </para>
-
-      <segmentedlist><?dbhtml list-presentation="table"?>
-	<seglistitem>
-	  <seg><literal>LOCAL</literal></seg>
-	</seglistitem>
-	<seglistitem>
-	  <seg><literal>Users</literal></seg>
-	</seglistitem>
-      </segmentedlist>
-
-      <para>
-      Unknown accounts on NFS or Samba shares (that is, accounts which cannot be
-      mapped to Windows user accounts via
-      <ulink url="https://tools.ietf.org/html/rfc2307">RFC 2307</ulink>) get a
-      Cygwin account name consisting of the artificial domains
-      <literal>Unix_User</literal> or <literal>Unix_Group</literal> and the
-      uid/gid value, for instance:
-      </para>
-
-      <segmentedlist><?dbhtml list-presentation="table"?>
-	<seglistitem>
-	  <seg><literal>Unix_User+0</literal></seg>
-	  <seg>(root)</seg>
-	</seglistitem>
-	<seglistitem>
-	  <seg><literal>Unix_Group+10</literal></seg>
-	  <seg>(wheel)</seg>
-	</seglistitem>
-      </segmentedlist>
-    </listitem>
-  </varlistentry>
-
-  <varlistentry>
-    <term><literal>primary</literal></term>
-    <listitem>
-      <para>
-      Like <literal>auto</literal>, but primary domain accounts will be
-      prepended by the domainname as well.
-      </para>
-    </listitem>
-  </varlistentry>
-
-  <varlistentry>
-    <term><literal>always</literal></term>
-    <listitem>
-      <para>
-      All accounts, even the builtin accounts, will have the domain name
-      prepended:
-      </para>
-
-      <segmentedlist><?dbhtml list-presentation="table"?>
-	<seglistitem>
-	  <seg><literal>BUILTIN+Users</literal></seg>
-	</seglistitem>
-      </segmentedlist>
-
-      <para>
-      A special case are builtin accounts which have an emtpy domain name.
-      These will be prependend by just the separator character in
-      <literal>always</literal> mode:
-      </para>
-
-      <segmentedlist><?dbhtml list-presentation="table"?>
-	<seglistitem>
-	  <seg><literal>+LOCAL</literal></seg>
-	</seglistitem>
-      </segmentedlist>
-    </listitem>
-  </varlistentry>
-</variablelist>
-
-</listitem>
-
-<listitem>
-<para>
-<literal>db_separator:</literal> defines the spearator char used to prepend the
-domain name to the user or group name.  The default is the plus character
-<literal>+</literal>.
-</para>
-
-<screen>
-  MY_DOM+username
-</screen>
-
-<para>
-With <literal>db_separator:</literal>, you can define any ASCII char except
-space, tab, carriage return, line feed, and the colon, as separator char.
-Example:
-</para>
-
-<screen>
-  db_separator: \
-</screen>
-
-<para>
-This results in usernames with the backslash as separator:
-</para>
-
-<screen>
-  MY_DOM\username
-</screen>
-
-</listitem>
-
-</itemizedlist>
--->
 
 <sect4 id="ntsec-mapping-nsswitch-enum"><title id="ntsec-mapping-nsswitch-enum.title">The <literal>db_enum:</literal> setting</title>
 
@@ -1323,7 +1167,7 @@ and on non-AD machines.
 </para>
 
 <para>
-Four schemata are predefined, two schemata are variable.  The predefined
+Five schemata are predefined, two schemata are variable.  The predefined
 schemata are the following:
 </para>
 
@@ -1358,6 +1202,13 @@ schemata are the following:
 	      Supported for AD and SAM accounts.
 	      See <xref linkend="ntsec-mapping-nsswitch-desc"></xref>
 	      for a more detailed description.</listitem>
+  </varlistentry>
+  <varlistentry>
+    <term><literal>env</literal></term>
+    <listitem>Utilizes the user's environment.  This schema is only supported
+	      for setting the home directory yet.
+	      See <xref linkend="ntsec-mapping-nsswitch-home"></xref> for
+	      the description.</listitem>
   </varlistentry>
 </variablelist>
 
@@ -1490,6 +1341,17 @@ of each schema when used with <literal>db_home:</literal>
 	      <literal>description</literal> attribute in SAM or AD.
 	      See <xref linkend="ntsec-mapping-nsswitch-desc"></xref>
 	      for a detailed description.</listitem>
+  </varlistentry>
+  <varlistentry>
+    <term><literal>env</literal></term>
+    <listitem>Derives the home directory of the current user from the
+	      environment variable <literal>HOME</literal> (falling back to
+	      <literal>HOMEDRIVE\HOMEPATH</literal> and
+	      <literal>USERPROFILE</literal>, in that order).  This is faster
+	      than the <literal>windows</literal> schema at the
+	      expense of determining only the current user's home directory
+	      correctly.  This schema is skipped for any other account.
+	      </listitem>
   </varlistentry>
   <varlistentry>
     <term><literal>@ad_attribute</literal></term>
@@ -2350,8 +2212,8 @@ to 3.0 tried to creat a user token from scratch using an officially
 undocumented function <command>NtCreateToken</command> which
 is now disabled.</para>
 
-<para>So we just start the servers which have to switch the user context
-(<command>sshd</command>, <command>inetd</command>, <command>cron</command>,
+<para>So we just start the services which have to switch the user context
+(<command>cygsshd</command>, <command>inetd</command>, <command>cron</command>,
 ...) as Windows services under the SYSTEM (or LocalSystem in the GUI)
 account and everything just works.  Unfortunately that's too simple.
 Using <literal>S4U</literal> has a drawback.</para>

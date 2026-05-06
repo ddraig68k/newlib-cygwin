@@ -346,7 +346,7 @@ would be difficult.
 <question><para>Where is Objective C?</para></question>
 <answer>
 
-<para>Support for compiling Objective C is available in the <literal>gcc{4}-objc</literal>
+<para>Support for compiling Objective C is available in the <literal>gcc-objc</literal>
 package; resulting binaries will depend on the <literal>libobjc2</literal>
 package at runtime.
 </para>
@@ -357,7 +357,7 @@ package at runtime.
 <answer>
 
 <para>Beware of using non-portable shell features in your Makefiles (see tips
-at <ulink url="https://cygwin.com/faq/faq.html#faq.using.shell-scripts"/>).
+at <xref linkend="faq.using.shell-scripts"></xref>).
 </para>
 <para>Errors of <literal>make: execvp: /bin/sh: Illegal Argument</literal> or 
 <literal>make: execvp: /bin/sh: Argument list too long</literal> are often
@@ -380,7 +380,7 @@ cygexec, you can find them with a script like this:
 <screen>
 #!/bin/sh
 cd /bin; for f in `find . -type f -name '*.exe'`; do
-	cygcheck $f | (fgrep -qi cygwin1.dll || echo $f)
+	cygcheck $f | (grep -Fqi cygwin1.dll || echo $f)
 done
 </screen>
 
@@ -671,62 +671,115 @@ rewriting the runtime library in question from specs...
 </para>
 </answer></qandaentry>
 
-<qandaentry id="faq.programming.building-cygwin">
+<qandaentry id="faq.programming.building-cygwin" xreflabel="Build Cygwin">
 <question><para>How do I build Cygwin on my own?</para></question>
 <answer>
 
 <para>First, you need to make sure you have the necessary build tools
-installed; you at least need <literal>gcc-g++</literal>,
-<literal>make</literal>, <literal>patch</literal>, <literal>perl</literal>,
-<literal>gettext-devel</literal>, <literal>libiconv-devel</literal> and
-<literal>zlib-devel</literal>.  Installing <literal>git</literal> to fetch
-the sources from the
-<ulink url="https://cygwin.com/git/newlib-cygwin.git">source repository</ulink>
-helps, too.  If you change a certain core part of Cygwin, namely the layout
-of the Cygwin TLS area, you also have to install <literal>cocom</literal>.
-Building for 32-bit Cygwin also requires
-<literal>mingw64-i686-gcc-g++</literal> and <literal>mingw64-i686-zlib</literal>.
-Building for 64-bit Cygwin also requires
-<literal>mingw64-x86_64-gcc-g++</literal> and
-<literal>mingw64-x86_64-zlib</literal>.
-<!-- If you want to run the tests, <literal>dejagnu</literal> is also required. -->
-Normally, building ignores any errors in building the documentation,
-which requires the <literal>dblatex</literal>, <literal>docbook2X</literal>,
-<literal>docbook-xml45</literal>, <literal>docbook-xsl</literal>, and
-<literal>xmlto</literal> packages.  For more information on building the
-documentation, see the README included in the <literal>cygwin-doc</literal> package.
+installed; you at least need <literal>autoconf</literal>,
+<literal>automake</literal>, <literal>cocom</literal>,
+<literal>gcc-g++</literal>, <literal>git</literal>,
+<literal>libtool</literal>, <literal>make</literal>,
+<literal>patch</literal>, and <literal>perl</literal>.
 </para>
 
-<para>Next, get the Cygwin source.  Ideally, you should check out what you
-need from Git (<ulink url="https://cygwin.com/git.html"/>).  This is the
-<emphasis>preferred method</emphasis> for acquiring the sources.  Otherwise,
-if you are trying to duplicate a cygwin release then you should download the
-corresponding source package
+<para>
+Additionally, building the <code>dumper</code> utility requires
+<literal>gettext-devel</literal>, <literal>libiconv</literal>,
+<literal>libiconv-devel</literal>, <literal>libiconv2</literal>,
+<literal>libzstd-devel</literal>, and <literal>zlib-devel</literal>.
+</para>
+
+<para>
+Building those Cygwin utilities which are not themselves Cygwin programs
+(e.g. <code>cygcheck</code> and <code>strace</code>) also requires
+<literal>mingw64-x86_64-gcc-g++</literal> and <literal>mingw64-x86_64-zlib</literal>.
+Building these programs can be disabled with the <literal>--without-mingw-progs</literal>
+option to <literal>configure</literal>.
+</para>
+
+<para>
+Build of <literal>cygserver</literal> can be skipped with
+<literal>--disable-cygserver</literal> and build of other Cygwin utilities with
+<literal>--disable-utils</literal>.
+</para>
+
+<para>
+In combination, <literal>--disable-cygserver</literal>,
+<literal>--disable-dumper</literal>, <literal>--disable-utils</literal>
+and <literal>--without-mingw-progs</literal> allow building of just
+<literal>cygwin1.dll</literal> and <literal>crt0.o</literal> for a stage2
+compiler, when being built with stage1 compiler which does not support linking
+executables yet (because those files are missing).
+</para>
+
+<!-- If you want to run the tests <literal>busybox</literal> and
+     <literal>cygutils-extra</literal> are also required. -->
+
+<para>
+Building the documentation also requires the <literal>dblatex</literal>,
+<literal>docbook-utils</literal>, <literal>docbook-xml45</literal>,
+<literal>docbook-xsl</literal>, <literal>docbook2X</literal>,
+<literal>perl-XML-SAX-Expat</literal>, and <literal>xmlto</literal>
+packages. Building the documentation can be disabled with the
+<literal>--disable-doc</literal> option to <literal>configure</literal>.
+</para>
+
+<para>
+Below are ready-made commands to download the required
+packages. When you reach the <emphasis>Select Packages</emphasis> screen,
+these packages should be amongst the search results.
+</para>
+<screen>
+$ setup-x86_64.exe -P autoconf,automake,cocom,gcc-g++,git,libtool,make,patch,perl                           # download build tool packages
+$ setup-x86_64.exe -P gettext-devel,libiconv,libiconv-devel,libiconv2,libzstd-devel,zlib-devel              # download dumper packages
+$ setup-x86_64.exe -P mingw64-x86_64-gcc-g++,mingw64-x86_64-zlib                                            # download utility packages
+$ setup-x86_64.exe -P dblatex,docbook-utils,docbook-xml45,docbook-xsl,docbook2X,perl-XML-SAX-Expat,xmlto    # download documentation packages
+</screen>
+
+<para>Next, check out the Cygwin sources from the
+<ulink url="https://cygwin.com/git.html">Cygwin GIT source repository</ulink>.
+This is the <emphasis>preferred method</emphasis> for acquiring the sources.
+Otherwise, if you are trying to duplicate a cygwin release then you should
+download the corresponding source package
 (<literal>cygwin-x.y.z-n-src.tar.bz2</literal>). </para> 
 
 <para>You <emphasis>must</emphasis> build cygwin in a separate directory from
 the source, so create something like a <literal>build/</literal> directory.
-Assuming you checked out the source in <literal>/oss/src/</literal>, and you
-also want to install to the temporary location <literal>install</literal>:
+Assuming you checked out the source to
+<literal>/src/newlib-cygwin/</literal>, and you want to install to the
+temporary location <literal>/install/</literal>, these are the required
+steps to build Cygwin:
 </para>
+
 <screen>
-mkdir /oss/build
-mkdir /oss/install 
-cd build
-(/oss/src/configure --prefix=/oss/install -v; make) &gt;&amp; make.out
-make install &gt; install.log 2&gt;&amp;1
+$ mkdir -p /src/newlib-cygwin/build    # create build dir
+$ mkdir -p /install                    # create install dir
+$ cd /src/newlib-cygwin/winsup         # chdir into Cygwin source dir and...
+$ ./autogen.sh                         # create config files
+$ cd /src/newlib-cygwin/build          # chdir into build dir
+$ /src/newlib-cygwin/configure         # create makefiles...
+$ make                                 # build Cygwin
+$ make -j1 install DESTDIR=/install    # install Cygwin into install dir
 </screen>
 
 <para>
-If the build works, install everything <emphasis>except</emphasis> the dll (if
-you can).  Then, close down all cygwin programs (including bash windows,
-inetd, etc.), save your old dll, and copy the new dll to the correct
-place.  Then start up a bash window, or  run a cygwin program from the
-Windows command prompt, and see what happens.
+If the build worked, you can install everything you like into the currently
+running system, <emphasis>except</emphasis> the Cygwin DLL
+<command>cygwin1.dll</command> itself.  For installing the DLL, close down
+all Cygwin programs (including bash windows, any servers like
+<command>cygserver</command>, etc.), save your old dll, and copy the new dll
+to the correct place.  Then, for first testing, start up a Cygwin program
+from the Windows command prompt and see what happens.
 </para>
-<para>If you get the error "shared region is corrupted" it means that two
-different versions of cygwin1.dll are running on your machine at the
-same time. Remove all but one. 
+<para>If you get a lengthy error messages like
+<literal>"user shared memory version mismatch detected"</literal>, it's
+very likely a Cygwin process still running using the old DLL.  Kill it
+in Windows' Task Manager or <command>taskkill</command> and try again.
+If it's still not working, and if you're sure there's no older Cygwin
+process still running, it's probably a bug you introduced with your changes.
+From here on, you're on your own or discuss problems on the
+<ulink url="https://cygwin.com/lists.html">Cygwin-developers mailing list</ulink>.
 </para>
 </answer></qandaentry>
 
@@ -749,14 +802,13 @@ operation e.g. when checking a pointer is valid)
 </para>
 
 <para>
-It is also a good
-idea to use the latest code in case the bug has been fixed, so we
-recommend trying the latest snapshot from
-<ulink url="https://cygwin.com/snapshots/"/> or building the DLL from git.
+It is also a good idea to use the latest code in case the bug has been fixed,
+so we recommend trying the latest cygwin test release (see
+<xref linkend="faq.setup.testrels"></xref>) or building the DLL from git.
 </para>
 
 <para>To build a debugging version of the Cygwin DLL, you will need to follow
-the instructions at <ulink url="https://cygwin.com/faq/faq.html#faq.programming.building-cygwin"/>.
+the instructions at <xref linkend="faq.programming.building-cygwin"></xref>.
 </para>
 
 <para>
@@ -770,7 +822,7 @@ demonstrates the bug is always welcome).
 <answer>
 
 <para>Unfortunately, this will be difficult.  Exception handling and signals
-support semantics and args have been designed for x86 so you would need
+support semantics and args have been designed for x86_64 so you would need
 to write specific support for your platform.  We don't know of any other
 incompatibilities. Please send us patches if you do this work!
 </para>
@@ -828,6 +880,12 @@ Guide here: <ulink url="https://cygwin.com/cygwin-ug-net/dll.html"/>.
 <para>
   Note that the DllMain entrypoints for linked DLLs will have been executed
   before this breakpoint is hit.
+</para>
+
+<para>
+  (It may be necessary to use the <command>gdb</command> command <command>set
+  disable-randomization on</command> to turn off ASLR for the debuggee to
+  prevent the base address getting randomized.)
 </para>
 </answer></qandaentry>
 
@@ -1036,7 +1094,7 @@ a Windows environment which Cygwin handles automatically.
 <question><para>How should I port my Unix GUI to Windows?</para></question>
 <answer>
 
-<para>Like other Unix-like platforms, the Cygwin distribtion includes many of
+<para>Like other Unix-like platforms, the Cygwin distribution includes many of
 the common GUI toolkits, including X11, X Athena widgets, Motif, Tk, GTK+,
 and Qt. Many programs which rely on these toolkits will work with little, if
 any, porting work if they are otherwise portable.  However, there are a few

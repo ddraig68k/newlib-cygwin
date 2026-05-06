@@ -31,6 +31,7 @@ program_transform_name = @program_transform_name@
 bindir = @bindir@
 libdir = @libdir@
 tooldir = $(exec_prefix)/$(target_alias)
+specsdir = $(libdir)/gcc/$(target_alias)
 
 # Multilib support variables.
 # TOP is used instead of MULTI{BUILD,SRC}TOP.
@@ -44,6 +45,8 @@ INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 
 SHELL =	/bin/sh
+
+mkinstalldirs = $(SHELL) $(srcroot)/mkinstalldirs
 
 CC = @CC@
 
@@ -67,7 +70,15 @@ OBJS =  close.o fstat.o getpid.o isatty.o kill.o \
 	unlink.o write.o
 
 # What targets to build for.  This is a list of {m68k,cf}
-DO = @DO@
+TARGET = @M68K_TARGET@
+
+# Check if vendor is atari and if so, adjust the target
+target_vendor = @target_vendor@
+ifdef target_vendor
+	ifeq ($(target_vendor), atari)
+		TARGET := $(TARGET)_$(target_vendor)
+	endif
+endif
 
 # Here is all of the simulator stuff
 SIM_SCRIPTS	= sim.ld
@@ -203,18 +214,51 @@ UNHOSTED_OBJS=	unhosted-close.o unhosted-fstat.o \
 HOSTED_BSP=	libhosted.a
 HOSTED_OBJS=	hosted-gdb.o hosted-exit.o $(patsubst un%,%,$(UNHOSTED_OBJS))
 
+#
+# here's all the atari stuff
+#
+
+ATARI_SRC_LIBGLOSS := atari-environ.c atari-execve.c atari-link.c atari-times.c \
+	atari-wait.c atari-traps.c atari-gem_errno.c atari-close.c atari-fstat.c \
+	atari-getpid.c atari-isatty.c atari-kill.c atari-lseek.c atari-open.c atari-read.c \
+	atari-sbrk.c atari-stat.c atari-unlink.c atari-write.c \
+	atari-chown.c atari-fork.c atari-getentropy.c atari-gettod.c atari-readlink.c \
+	atari-symlink.c atari-chdir.c atari-getcwd.c atari-mkdir.c atari-rmdir.c \
+	atari-rename.c
+
+ATARI_OBJS_LIBGLOSS := $(foreach source,$(ATARI_SRC_LIBGLOSS),$(basename $(source)).o)
+
+ATARI_CRTI := atari-crti.o
+ATARI_CRTN := atari-crtn.o
+ATARI_CRT0 := atari-crt0.o
+ATARI_NEWLIB := libatari-tos.a
+ATARI_LINK := atari-tos.ld
+ATARI_SPECS := atari-tos.specs
+
+ATARI_ASFLAGS := -Xassembler --register-prefix-optional
+
 # Host specific makefile fragment comes in here.
 @host_makefile_frag@
 
-all :: $(DO:%=all_%)
+all :: $(TARGET:%=all_%)
 
 #
 # here's where we build the board support packages for each target
 #
 
+.PHONY: all_m68k_atari
+all_m68k_atari :: $(ATARI_CRTI) $(ATARI_CRTN) $(ATARI_CRT0) $(ATARI_NEWLIB)
+
+.PHONY: all_cf_atari
+all_cf_atari :: all_m68k_atari
+
+.PHONY: all_fido_atari
+all_fido_atari :: all_m68k_atari
+
 .PHONY: all_m68k
 all_m68k :: ${SIM_CRT0} ${SIM_BSP} ${CRT0} ${BCC_BSP} ${IDP_BSP} \
 	${IDPGDB_BSP} ${MVME135_BSP} ${MVME162_BSP} ${DDRAIG_CRT0} ${DDRAIG_BSP}
+
 .PHONY: all_cf
 all_cf :: ${CF_CRT0S} ${CF_BSP} ${CF_SCRIPTS} ${HOSTED_BSP} ${UNHOSTED_BSP}
 
@@ -249,6 +293,23 @@ ${MVME135_BSP}: $(OBJS) ${MVME135_OBJS}
 ${MVME162_BSP}: $(OBJS) ${MVME162_OBJS}
 	${AR} ${ARFLAGS} $@ $(OBJS) ${MVME162_OBJS}
 	${RANLIB} $@
+
+# build atari library
+$(ATARI_CRT0): atari/atari-crt0.S
+	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(ATARI_ASFLAGS) -c $< -o $@
+
+$(ATARI_CRTI): atari/atari-crti.S
+	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(ATARI_ASFLAGS) -c $< -o $@
+
+$(ATARI_CRTN): atari/atari-crtn.S
+	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(ATARI_ASFLAGS) -c $< -o $@
+
+%.o: atari/%.c
+	$(CC) $(CFLAGS_FOR_TARGET) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(ATARI_NEWLIB): $(ATARI_OBJS_LIBGLOSS)
+	$(AR) $(ARFLAGS) $@ $^
+	$(RANLIB) $@
 
 # build hosted library
 $(HOSTED_OBJS): hosted%.o: io%.c io.h
@@ -416,11 +477,28 @@ dtor.x: dtor.o ${CRT0} ${srcdir}/mvme135.ld Makefile  ${MVME135_BSP}
 unlink.o: $(srcdir)/../unlink.c
 
 .PHONY: install info dvi doc install-info clean-info
-install:: $(DO:%=install_%)
+install:: $(TARGET:%=install_%)
 
+
+.PHONY:install_m68k_atari
+install_m68k_atari::
+	${mkinstalldirs} ${DESTDIR}${tooldir}/lib${MULTISUBDIR}
+	$(INSTALL_PROGRAM) $(ATARI_CRTI) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/crti.o
+	$(INSTALL_PROGRAM) $(ATARI_CRTN) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/crtn.o
+	$(INSTALL_PROGRAM) $(ATARI_CRT0) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/crt0.o
+	$(INSTALL_PROGRAM) $(ATARI_NEWLIB) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(ATARI_NEWLIB)
+	$(INSTALL_DATA) ${srcdir}/atari/$(ATARI_LINK) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(ATARI_LINK)
+	$(INSTALL_DATA) ${srcdir}/atari/$(ATARI_SPECS) $(DESTDIR)$(specsdir)/specs
+
+.PHONY:install_cf_atari
+install_cf_atari:: install_m68k_atari
+
+.PHONY:install_fido_atari
+install_fido_atari:: install_m68k_atari
 
 .PHONY:install_m68k
 install_m68k::
+	${mkinstalldirs} ${DESTDIR}${tooldir}/lib${MULTISUBDIR}
 	# install SIM stuff
 	$(INSTALL_PROGRAM) $(SIM_CRT0) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(SIM_CRT0)
 	$(INSTALL_PROGRAM) $(SIM_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(SIM_BSP)
@@ -452,6 +530,7 @@ install_m68k::
 
 .PHONY: install_cf
 install_cf:: install_io
+	${mkinstalldirs} ${DESTDIR}${tooldir}/lib${MULTISUBDIR}
 	# install CF stuff
 	$(INSTALL_DATA) $(CF_CRT0S) $(CF_BSP) \
 		$(DESTDIR)$(tooldir)/lib${MULTISUBDIR}
@@ -464,6 +543,7 @@ endif
 
 .PHONY: install_fido
 install_fido:: install_io
+	${mkinstalldirs} ${DESTDIR}${tooldir}/lib${MULTISUBDIR}
 	$(INSTALL_DATA) $(FIDO_CRT0S) $(FIDO_BSP) \
 		$(DESTDIR)$(tooldir)/lib$(MULTISUBDIR)
 	$(INSTALL_DATA) $(FIDO_SCRIPTS) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}
@@ -476,6 +556,7 @@ endif
 
 .PHONY: install_io
 install_io::
+	${mkinstalldirs} ${DESTDIR}${tooldir}/lib${MULTISUBDIR}
 	# install IO stuff
 	$(INSTALL_DATA) $(HOSTED_BSP) $(UNHOSTED_BSP) \
 		$(DESTDIR)$(tooldir)/lib${MULTISUBDIR}
@@ -484,17 +565,14 @@ install_io::
 @target_makefile_frag@
 
 clean mostlyclean:
-	rm -f a.out core *.i *~ *.a *.o *-test *.srec *.dis *.x *.map
+	rm -f a.out core *.i *~ *.a *.o *-test *.srec *.dis *.x *.map *.ld
 
 distclean maintainer-clean realclean: clean
-	rm -f Makefile config.cache config.log config.status
+	rm -f Makefile
 
 info dvi doc:
 install-info:
 clean-info:
 
-Makefile: Makefile.in config.status @host_makefile_frag_path@ @target_makefile_frag_path@
-	$(SHELL) config.status
-
-config.status: configure
-	$(SHELL) config.status --recheck
+Makefile: Makefile.in ../config.status
+	cd .. && $(SHELL) config.status

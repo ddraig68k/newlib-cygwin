@@ -1,3 +1,5 @@
+#ifndef HAVE_OPENDIR
+
 /*
 * Copyright © 2005-2020 Rich Felker, et al.
 *
@@ -29,6 +31,8 @@
 #include <string.h>
 #include <limits.h>
 #include <pthread.h>
+/* Pull in _STDIO_WITH_THREAD_CANCELLATION_SUPPORT */
+#include "../stdio/local.h"
 
 struct history
 {
@@ -141,7 +145,7 @@ int nftw(const char *path, int (*fn)(const char *, const struct stat *, int, str
 		return -1;
 	}
 	memcpy(pathbuf, path, l+1);
-	
+
 #ifdef _STDIO_WITH_THREAD_CANCELLATION_SUPPORT
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
 #endif
@@ -152,3 +156,4 @@ int nftw(const char *path, int (*fn)(const char *, const struct stat *, int, str
 	return r;
 }
 
+#endif /* ! HAVE_OPENDIR */

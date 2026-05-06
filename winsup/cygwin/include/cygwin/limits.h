@@ -39,17 +39,17 @@ details. */
    threads in the same allocation granularity slot.  Oh well. */
 #define __PTHREAD_STACK_MIN 65536
 
-/* FIXME: We only support one realtime signal in 32 bit mode, but
-	 _POSIX_RTSIG_MAX is 8. */
-#if __WORDSIZE == 64
 #define __RTSIG_MAX 33
-#else
-#define __RTSIG_MAX 1
-#endif
 #define __SEM_VALUE_MAX 1147483648
-#define __SIGQUEUE_MAX 32
+#define __SIGQUEUE_MAX 1024
 #define __STREAM_MAX 20
-#define __SYMLOOP_MAX 10
+/* __SYMLOOP_MAX
+   https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-points
+   ... There is a limit of 63 reparse points on any given path.
+   NOTE: The limit can be reduced depending on the length of the
+   reparse point. For example, if your reparse point targets a fully
+   qualified path, the limit becomes 31. */
+#define __SYMLOOP_MAX 63
 #define __TIMER_MAX 32
 #define __TTY_NAME_MAX 32
 #define __FILESIZEBITS 64
@@ -61,5 +61,12 @@ details. */
 /* Keep in sync with __PATHNAME_MAX__ in cygwin/config.h */
 #define __PATH_MAX 4096
 #define __PIPE_BUF 4096
+
+/* XATTR_NAME_MAX is the maximum XATTR name length excluding the null
+ * terminator. Since only XATTRs in the `user' namespace are allowed and the
+ * `user.' prefix is not stored, the maximum is increased by 5. */
+#define XATTR_NAME_MAX 260
+#define XATTR_SIZE_MAX 65536
+#define XATTR_LIST_MAX 65536
 
 #endif /* _CYGWIN_LIMITS_H__ */

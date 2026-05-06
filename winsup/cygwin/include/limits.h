@@ -47,9 +47,19 @@ details. */
 #undef SCHAR_MAX
 #define SCHAR_MAX 127
 
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef SCHAR_WIDTH
+#define SCHAR_WIDTH __SCHAR_WIDTH__
+#endif
+
 /* Maximum value an `unsigned char' can hold.  (Minimum is 0).  */
 #undef UCHAR_MAX
 #define UCHAR_MAX 255
+
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef UCHAR_WIDTH
+#define UCHAR_WIDTH __SCHAR_WIDTH__
+#endif
 
 /* Minimum and maximum values a `char' can hold.  */
 #ifdef __CHAR_UNSIGNED__
@@ -64,15 +74,30 @@ details. */
 #define CHAR_MAX 127
 #endif
 
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef CHAR_WIDTH
+#define CHAR_WIDTH __SCHAR_WIDTH__
+#endif
+
 /* Minimum and maximum values a `signed short int' can hold.  */
 #undef SHRT_MIN
 #define SHRT_MIN (-32768)
 #undef SHRT_MAX
 #define SHRT_MAX 32767
 
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef SHRT_WIDTH
+#define SHRT_WIDTH __SHRT_WIDTH__
+#endif
+
 /* Maximum value an `unsigned short int' can hold.  (Minimum is 0).  */
 #undef USHRT_MAX
 #define USHRT_MAX 65535
+
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef USHRT_WIDTH
+#define USHRT_WIDTH __SHRT_WIDTH__
+#endif
 
 /* Minimum and maximum values a `signed int' can hold.  */
 #ifndef __INT_MAX__
@@ -83,27 +108,44 @@ details. */
 #undef INT_MAX
 #define INT_MAX __INT_MAX__
 
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef INT_WIDTH
+#define INT_WIDTH __INT_WIDTH__
+#endif
+
 /* Maximum value an `unsigned int' can hold.  (Minimum is 0).  */
 #undef UINT_MAX
 #define UINT_MAX (INT_MAX * 2U + 1)
 
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef UINT_WIDTH
+#define UINT_WIDTH __INT_WIDTH__
+#endif
+
 /* Minimum and maximum values a `signed long int' can hold.
    (Same as `int').  */
 #ifndef __LONG_MAX__
-#if __WORDSIZE == 64
 #define __LONG_MAX__ 9223372036854775807L
-#else
-#define __LONG_MAX__ 2147483647L
-# endif /* __alpha__ */
 #endif
 #undef LONG_MIN
 #define LONG_MIN (-LONG_MAX-1L)
 #undef LONG_MAX
 #define LONG_MAX __LONG_MAX__
 
+
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef LONG_WIDTH
+#define LONG_WIDTH __LONG_WIDTH__
+#endif
+
 /* Maximum value an `unsigned long int' can hold.  (Minimum is 0).  */
 #undef ULONG_MAX
 #define ULONG_MAX (LONG_MAX * 2UL + 1)
+
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef ULONG_WIDTH
+#define ULONG_WIDTH __LONG_WIDTH__
+#endif
 
 /* Minimum and maximum values a `signed long long int' can hold.  */
 #ifndef __LONG_LONG_MAX__
@@ -128,23 +170,27 @@ details. */
 #undef LLONG_MAX
 #define LLONG_MAX __LONG_LONG_MAX__
 
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef LLONG_WIDTH
+#define LLONG_WIDTH __LONG_LONG_WIDTH__
+#endif
+
 /* Maximum value an `unsigned long long int' can hold.  (Minimum is 0).  */
 #undef ULLONG_MAX
 #define ULLONG_MAX (LLONG_MAX * 2ULL + 1)
 #endif /* __ISO_C_VISIBLE >= 1999 */
 
-/* Maximum size of ssize_t. Sadly, gcc doesn't give us __SSIZE_MAX__
-   the way it does for __SIZE_MAX__.  On the other hand, we happen to
-   know that for Cygwin, ssize_t is 'int' on 32-bit and 'long' on
-   64-bit, and this particular header is specific to Cygwin, so we
-   don't have to jump through hoops. */
-#undef SSIZE_MAX
-#if __WORDSIZE == 64
-#define SSIZE_MAX (__LONG_MAX__)
-#else
-#define SSIZE_MAX (__INT_MAX__)
+#if defined(__STDC_WANT_IEC_60559_BFP_EXT__) || __ISO_C_VISIBLE >= 2023
+#undef ULLONG_WIDTH
+#define ULLONG_WIDTH __LONG_LONG_WIDTH__
 #endif
 
+/* Maximum size of ssize_t. Sadly, gcc doesn't give us __SSIZE_MAX__
+   the way it does for __SIZE_MAX__.  On the other hand, we happen to
+   know that for Cygwin, ssize_t is 'long' and this particular header
+   is specific to Cygwin, so we don't have to jump through hoops. */
+#undef SSIZE_MAX
+#define SSIZE_MAX (__LONG_MAX__)
 
 /* Runtime Invariant Values */
 
@@ -385,9 +431,8 @@ details. */
 #undef BC_STRING_MAX
 #define BC_STRING_MAX 1000
 
-/* Maximum number of bytes in a character class name.  Not implemented. */
-#undef CHARCLASS_NAME_MAX
-/* #define CHARCLASS_NAME_MAX >= _POSIX2_CHARCLASS_NAME_MAX */
+/* Maximum number of bytes in a character class name. */
+#define CHARCLASS_NAME_MAX 14
 
 /* Maximum number of weights that can be assigned to an entry of the
    LC_COLLATE order keyword in the locale definition file. */
