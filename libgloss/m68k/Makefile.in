@@ -116,7 +116,7 @@ BCC_OBJS=	cpu32bug.o
 #
 # here's all the Y Ddraig target stuff
 #
-DDRAIG_LDFLAGS=	-L${srcdir} -Tddraig.ld
+DDRAIG_LDFLAGS=	-L${srcdir} --pie -Tddraig.ld
 DDRAIG_BSP=		libddraig.a
 DDRAIG_OBJS=	ddraig-close.o ddraig-exit.o ddraig-fstat.o ddraig-getentropy.o ddraig-gettimeofday.o ddraig-isatty.o ddraig-lseek.o ddraig-open.o ddraig-read.o ddraig-rename.o ddraig-sbrk.o ddraig-stat.o ddraig.o ddraig-time.o ddraig-unlink.o ddraig-write.o ddraig-inbyte.o ddraig-outbyte.o
 DDRAIG_CRT0=	ddraig_crt0.o
@@ -512,6 +512,7 @@ install_m68k::
 	$(INSTALL_PROGRAM) $(DDRAIG_CRT0) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(DDRAIG_CRT0)
 	$(INSTALL_PROGRAM) $(DDRAIG_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(DDRAIG_BSP)
 	$(INSTALL_DATA) ${srcdir}/ddraig.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/ddraig.ld
+	$(INSTALL_DATA) ${srcdir}/ddraig_static.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/ddraig_static.ld
 	$(INSTALL_DATA) ${srcdir}/ddraigtest.ld $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/ddraigtest.ld
 	# install IDP stuff
 	$(INSTALL_PROGRAM) $(IDP_BSP) $(DESTDIR)$(tooldir)/lib${MULTISUBDIR}/$(IDP_BSP)
