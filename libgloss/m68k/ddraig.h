@@ -25,6 +25,7 @@ typedef struct
 
 #define SYS_NOP				      0
 #define SYS_TIMEDATE		    1
+#define SYS_BRK                 60
 
 typedef struct
 {
