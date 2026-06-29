@@ -21,6 +21,8 @@ typedef struct
 #define DISK_FILESTAT		    7
 #define DISK_FILERENAME		  8
 #define DISK_FILEDELETE		  9
+#define DISK_GETCWD         10
+#define DISK_CHDIR          11
 
 
 #define SYS_NOP				      0
