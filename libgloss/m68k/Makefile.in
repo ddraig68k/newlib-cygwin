@@ -118,7 +118,7 @@ BCC_OBJS=	cpu32bug.o
 #
 DDRAIG_LDFLAGS=	-L${srcdir} -Tddraig.ld
 DDRAIG_BSP=		libddraig.a
-DDRAIG_OBJS=	ddraig-close.o ddraig-exit.o ddraig-fstat.o ddraig-getentropy.o ddraig-gettimeofday.o ddraig-isatty.o ddraig-lseek.o ddraig-open.o ddraig-read.o ddraig-rename.o ddraig-sbrk.o ddraig-stat.o ddraig.o ddraig-time.o ddraig-unlink.o ddraig-write.o ddraig-inbyte.o ddraig-outbyte.o ddraig-getcwd.o ddraig-chdir.o
+DDRAIG_OBJS=	ddraig-close.o ddraig-exit.o ddraig-fstat.o ddraig-getentropy.o ddraig-gettimeofday.o ddraig-isatty.o ddraig-lseek.o ddraig-open.o ddraig-read.o ddraig-rename.o ddraig-sbrk.o ddraig-stat.o ddraig.o ddraig-time.o ddraig-unlink.o ddraig-write.o ddraig-inbyte.o ddraig-outbyte.o ddraig-getcwd.o ddraig-chdir.o ddraig-system.o
 DDRAIG_CRT0=	ddraig_crt0.o
 
 #

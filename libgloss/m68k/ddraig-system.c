@@ -98,5 +98,6 @@ int _system(const char *command)
     }
 
     free(buf);
-    return ret;
+    /* Encode as POSIX wait-status so WIFEXITED/WEXITSTATUS work correctly. */
+    return (ret >= 0) ? (ret << 8) : ret;
 }
