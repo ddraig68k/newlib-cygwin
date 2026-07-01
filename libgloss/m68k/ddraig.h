@@ -23,11 +23,35 @@ typedef struct
 #define DISK_FILEDELETE		  9
 #define DISK_GETCWD         10
 #define DISK_CHDIR          11
+#define DISK_OPENDIR        12
+#define DISK_READDIR        13
+#define DISK_CLOSEDIR       14
+#define DISK_MKDIR          15
+#define DISK_DUP2           16
+#define DISK_FCNTL          17
 
+#define SYS_NOP             0
+#define SYS_TIMEDATE        1
+#define SYS_BRK             60
+#define SYS_EXEC            62
 
-#define SYS_NOP				      0
-#define SYS_TIMEDATE		    1
-#define SYS_BRK                 60
+/* fcntl command codes recognised by DISK_FCNTL */
+#define BIOS_F_DUPFD        0
+#define BIOS_F_SETFD        2
+#define BIOS_FD_CLOEXEC     1
+
+/* Number of fds tracked in the process fd_redir table (fds 0..PROCESS_FD_MAX-1). */
+#define PROCESS_FD_MAX      16
+
+/* Directory entry filled by DISK_READDIR. */
+typedef struct
+{
+    u_int32_t fsize;
+    u_int8_t  fattrib;
+    char      fname[256];
+} bios_dirent_t;
+
+#define BIOS_AM_DIR  0x10   /* fattrib bit: entry is a directory */
 
 typedef struct
 {
