@@ -19,14 +19,7 @@ int mkdir(const char *path, mode_t mode)
     sys.command = DISK_MKDIR;
     sys.a0      = (void *)path;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #15\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
     if (ret < 0)
         errno = EACCES;
@@ -48,14 +41,7 @@ int rmdir(const char *path)
     sys.command = DISK_FILEDELETE;
     sys.a0      = (void *)path;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #15\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
     if (ret < 0)
         errno = EACCES;

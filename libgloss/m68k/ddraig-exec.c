@@ -20,14 +20,7 @@ int ddraig_exec(const char *path, int argc, char **argv)
     sys.a0      = (void *)path;
     sys.a1      = (void *)argv;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #14\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap14(&sys);
 
     return ret;
 }

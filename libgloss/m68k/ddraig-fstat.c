@@ -32,14 +32,7 @@ int fstat (int fd, struct stat *buf)
 	sys.command = DISK_FILESTRUCT;
 	sys.d0 = fd;
 
-	__asm__ volatile(
-	"move.l	%1, %%a0\n"
-	"trap	#15\n"
-	"move.l %%d0, %0\n"
-	: "=g" (ret)
-	: "g" (&sys)
-	: "%a0"
-	);
+	ret = ddraig_trap15(&sys);
 
   	errno = _bios_to_error_code(sys.d1);
 	if (ret < 0)

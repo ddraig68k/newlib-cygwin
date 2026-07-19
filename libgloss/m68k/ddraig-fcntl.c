@@ -25,14 +25,7 @@ int fcntl(int fd, int cmd, ...)
         sys.d1      = (u_int32_t)BIOS_F_DUPFD;
         sys.d2      = (u_int32_t)arg;
 
-        __asm__ volatile(
-            "move.l %1, %%a0\n"
-            "trap   #15\n"
-            "move.l %%d0, %0\n"
-            : "=g" (ret)
-            : "g"  (&sys)
-            : "%a0"
-        );
+        ret = ddraig_trap15(&sys);
 
         if (ret < 0)
             errno = EMFILE;

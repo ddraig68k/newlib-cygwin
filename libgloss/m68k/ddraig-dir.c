@@ -45,14 +45,7 @@ DIR *opendir(const char *path)
     sys.command = DISK_OPENDIR;
     sys.a0      = (void *)path;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #15\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
     if (ret < 0)
     {
@@ -66,13 +59,7 @@ DIR *opendir(const char *path)
         /* Close the OS handle we just opened. */
         sys.command = DISK_CLOSEDIR;
         sys.d0      = (u_int32_t)ret;
-        __asm__ volatile(
-            "move.l %0, %%a0\n"
-            "trap   #15\n"
-            :
-            : "g" (&sys)
-            : "%a0"
-        );
+        (void)ddraig_trap15(&sys);
         errno = ENOMEM;
         return NULL;
     }
@@ -99,14 +86,7 @@ struct dirent *readdir(DIR *dirp)
     sys.d0      = (u_int32_t)d->_os_handle;
     sys.a0      = &bde;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #15\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
     if (ret != 0)
         return NULL;  /* end-of-dir (ret==1) or error (ret==-1) */
@@ -132,14 +112,7 @@ int closedir(DIR *dirp)
     sys.command = DISK_CLOSEDIR;
     sys.d0      = (u_int32_t)d->_os_handle;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #15\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
     free(d);
     return (ret < 0) ? -1 : 0;
@@ -160,11 +133,5 @@ void rewinddir(DIR *dirp)
     sys.d0      = (u_int32_t)d->_os_handle;
     sys.a0      = NULL;   /* NULL signals rewind to the OS */
 
-    __asm__ volatile(
-        "move.l %0, %%a0\n"
-        "trap   #15\n"
-        :
-        : "g" (&sys)
-        : "%a0"
-    );
+    (void)ddraig_trap15(&sys);
 }

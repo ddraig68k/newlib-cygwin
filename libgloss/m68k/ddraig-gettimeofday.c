@@ -26,14 +26,7 @@ int gettimeofday (struct timeval *tv, void *tzvp)
 	  sys.command = SYS_TIMEDATE;
 	  sys.a0 = &rtc;
 
-    __asm__ volatile(
-    "move.l	%1, %%a0\n"
-    "trap	#14\n"
-    "move.l %%d0, %0\n"
-    : "=g" (ret)
-    : "g" (&sys)
-    : "%a0"
-    );
+    ret = ddraig_trap14(&sys);
 
   	errno = sys.d1;
 

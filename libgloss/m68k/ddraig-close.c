@@ -26,14 +26,7 @@ int close (int fd)
 	sys.command = DISK_FILECLOSE;
 	sys.d0 = fd;
 
-	__asm__ volatile(
-	"move.l	%1, %%a0\n"
-	"trap	#15\n"
-	"move.l %%d0, %0\n"
-	: "=g" (ret)
-	: "g" (&sys)
-	: "%a0"
-	);
+	ret = ddraig_trap15(&sys);
 
-  	return sys.d0;
+	return ret;
 }

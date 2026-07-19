@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -16,7 +17,7 @@
 
 #define MAX_ARGS 32
 
-int _system(const char *command)
+int system(const char *command)
 {
     if (command == NULL)
         return 1;   /* non-zero: shell is available */
@@ -80,21 +81,14 @@ int _system(const char *command)
     int ret = -1;
     if (argc > 0)
     {
-        syscall_data sys;
+        volatile syscall_data sys;
 
         sys.command = SYS_EXEC;
         sys.d0      = (u_int32_t)argc;
         sys.a0      = (void *)argv[0];
         sys.a1      = (void *)argv;
 
-        __asm__ volatile(
-            "move.l %1, %%a0\n"
-            "trap   #14\n"
-            "move.l %%d0, %0\n"
-            : "=g" (ret)
-            : "g"  (&sys)
-            : "%a0"
-        );
+        ret = ddraig_trap14(&sys);
     }
 
     free(buf);

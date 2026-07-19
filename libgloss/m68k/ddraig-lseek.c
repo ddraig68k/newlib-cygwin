@@ -34,14 +34,7 @@ off_t lseek (int fd, off_t offset, int whence)
     sys.d1 = offset;
     sys.d2 = whence;
 
-    __asm__ volatile(
-    "move.l	%1, %%a0\n"
-    "trap	#15\n"
-    "move.l %%d0, %0\n"
-    : "=g" (ret)
-    : "g" (&sys)
-    : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
   	errno = _bios_to_error_code(sys.d1);
   	return ret;

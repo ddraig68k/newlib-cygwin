@@ -13,14 +13,7 @@ static int do_disk_fcntl(int fd, int cmd, int arg)
     sys.d1      = (u_int32_t)cmd;
     sys.d2      = (u_int32_t)arg;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #15\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
     if (ret < 0)
         errno = EBADF;
@@ -44,14 +37,7 @@ int dup2(int oldfd, int newfd)
     sys.d0      = (u_int32_t)oldfd;
     sys.d1      = (u_int32_t)newfd;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #15\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap15(&sys);
 
     if (ret < 0)
         errno = EBADF;

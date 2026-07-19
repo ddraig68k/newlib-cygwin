@@ -24,14 +24,7 @@ char *sbrk(int nbytes)
     sys.command = SYS_BRK;
     sys.d0      = (u_int32_t)nbytes;
 
-    __asm__ volatile(
-        "move.l %1, %%a0\n"
-        "trap   #14\n"
-        "move.l %%d0, %0\n"
-        : "=g" (ret)
-        : "g"  (&sys)
-        : "%a0"
-    );
+    ret = ddraig_trap14(&sys);
 
     if (ret != -1)
         return (char *)ret;

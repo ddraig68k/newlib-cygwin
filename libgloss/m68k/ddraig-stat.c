@@ -35,14 +35,7 @@ int stat (const char *__restrict filename, struct stat *__restrict buf)
 	sys.a0 = (void *)filename;
 	sys.a1 = &fileinfo;
 
-	__asm__ volatile(
-	"move.l	%1, %%a0\n"
-	"trap	#15\n"
-	"move.l %%d0, %0\n"
-	: "=g" (ret)
-	: "g" (&sys)
-	: "%a0"
-	);
+	ret = ddraig_trap15(&sys);
 
 	//printf("stat returned %d\n\r", ret);
 

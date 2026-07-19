@@ -10,6 +10,45 @@ typedef struct
 	void        *a0, *a1, *a2;
 } syscall_data;
 
+/*
+ * TRAP #14/#15 enter C code in the OS, so they have the same volatile
+ * register effects as a normal C call.  Keep that compiler contract here so
+ * individual syscall wrappers cannot accidentally retain values in registers
+ * that the OS is allowed to overwrite.  The OS also updates syscall_data and
+ * caller-provided buffers, hence the memory clobber.
+ */
+static __inline__ int ddraig_trap14(volatile syscall_data *sys)
+{
+    int ret;
+
+    __asm__ volatile(
+        "move.l %1, %%a0\n"
+        "trap   #14\n"
+        "move.l %%d0, %0\n"
+        : "=g" (ret)
+        : "g"  (sys)
+        : "%d0", "%d1", "%a0", "%a1", "cc", "memory"
+    );
+
+    return ret;
+}
+
+static __inline__ int ddraig_trap15(volatile syscall_data *sys)
+{
+    int ret;
+
+    __asm__ volatile(
+        "move.l %1, %%a0\n"
+        "trap   #15\n"
+        "move.l %%d0, %0\n"
+        : "=g" (ret)
+        : "g"  (sys)
+        : "%d0", "%d1", "%a0", "%a1", "cc", "memory"
+    );
+
+    return ret;
+}
+
 // BIOS call commands
 #define DISK_NOP            0
 #define DISK_FILEOPEN       1
