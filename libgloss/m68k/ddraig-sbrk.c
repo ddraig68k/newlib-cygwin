@@ -36,8 +36,9 @@ char *sbrk(int nbytes)
     char *base = heap_ptr;
     heap_ptr  += nbytes;
 
-    /* Rough sanity check: stay within the 8 MB DRAM window. */
-    if (heap_ptr > (char *)(8 * 1024 * 1024))
+    /* Rough sanity check: stay within the 8 MB DRAM window
+     * (DRAM_START 0x100000 .. DRAM_END 0x8FFFFF, per hardware.h). */
+    if (heap_ptr > (char *)0x900000)
     {
         heap_ptr = base;
         errno = ENOMEM;
